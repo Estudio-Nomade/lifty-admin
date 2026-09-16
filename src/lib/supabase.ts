@@ -7,7 +7,7 @@ export const isSupabaseConfigured = Boolean(url && anon);
 
 if (!isSupabaseConfigured) {
   console.error(
-    '[supabase] Faltan VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY (proyecto Lifty dlqvos…).',
+    '[supabase] Faltan VITE_SUPABASE_URL o VITE_SUPABASE_ANON_KEY (proyecto Lifty wabdd canónico).',
   );
 }
 
