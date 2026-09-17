@@ -1,4 +1,4 @@
-import { ClipboardList, Fuel, Percent, Users, type LucideIcon } from 'lucide-react';
+import { ClipboardList, Fuel, MapPinned, Percent, Users, type LucideIcon } from 'lucide-react';
 
 export type NavItem = {
   to: string;
@@ -10,6 +10,7 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Pendientes', icon: ClipboardList },
   { to: '/drivers', label: 'Conductores', icon: Users },
+  { to: '/transit-operators', label: 'Operadores tránsito', icon: MapPinned },
   { to: '/commission', label: 'Comisiones', icon: Percent },
   { to: '/fuel-price', label: 'Combustible / Tarifas', icon: Fuel },
 ];
