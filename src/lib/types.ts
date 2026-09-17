@@ -1,5 +1,32 @@
 export type IdentificationStatus = 'pending_pickup' | 'issued' | 'revoked';
 
+export type AdminDistrict = {
+  id: string;
+  name: string;
+  province: string;
+  status: string;
+};
+
+export type TransitOperator = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  transit_district_id: string | null;
+  district_name: string | null;
+  created_at: string;
+  banned?: boolean;
+};
+
+export type TransitOperatorCreateResult = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  transit_district_id: string;
+  district_name: string | null;
+  created_at: string;
+  password: string;
+};
+
 export type PendingDriver = {
   id: string;
   user_id: string;

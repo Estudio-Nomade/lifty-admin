@@ -5,6 +5,7 @@ import { DriversRegistryPage } from '@/pages/DriversRegistryPage';
 import { FuelPricePage } from '@/pages/FuelPricePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { PendingQueuePage } from '@/pages/PendingQueuePage';
+import { TransitOperatorsPage } from '@/pages/TransitOperatorsPage';
 import { UnauthorizedPage } from '@/pages/UnauthorizedPage';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/" element={<PendingQueuePage />} />
         <Route path="/drivers" element={<DriversRegistryPage />} />
         <Route path="/drivers/:id" element={<DriverDetailPage />} />
+        <Route path="/transit-operators" element={<TransitOperatorsPage />} />
         <Route path="/commission" element={<CommissionPage />} />
         <Route path="/fuel-price" element={<FuelPricePage />} />
       </Route>
