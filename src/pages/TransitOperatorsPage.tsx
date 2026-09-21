@@ -109,6 +109,7 @@ export function TransitOperatorsPage() {
   const [resetOp, setResetOp] = useState<TransitOperator | null>(null);
   const [resetPassword, setResetPassword] = useState('');
   const [showResetPass, setShowResetPass] = useState(false);
+  const [credentialsCopied, setCredentialsCopied] = useState(false);
 
   const operatorsQ = useQuery({
     queryKey: ['admin', 'transit-operators'],
@@ -182,6 +183,7 @@ export function TransitOperatorsPage() {
     onSuccess: (result) => {
       toast.success('Operador creado (pass verificada en Auth)');
       setCreateOpen(false);
+      setCredentialsCopied(false);
       setCredentials({
         email: result.email,
         password: result.password,
@@ -246,6 +248,7 @@ export function TransitOperatorsPage() {
       setResetOp(null);
       setResetPassword('');
       setShowResetPass(false);
+      setCredentialsCopied(false);
       setCredentials({
         email: result.email ?? '',
         password: result.password,
@@ -385,7 +388,7 @@ export function TransitOperatorsPage() {
                           className="min-h-11 md:min-h-8"
                           onClick={() => {
                             setResetOp(op);
-                            setResetPassword(randomPassword());
+                            setResetPassword('');
                             setShowResetPass(false);
                           }}
                         >
@@ -569,15 +572,28 @@ export function TransitOperatorsPage() {
       <Dialog
         open={!!resetOp}
         onOpenChange={(open) => {
-          if (!open) setResetOp(null);
+          if (!open) {
+            setResetOp(null);
+            setResetPassword('');
+            setShowResetPass(false);
+          }
         }}
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Resetear contraseña</DialogTitle>
-            <DialogDescription>
-              Auth wabdd · el login de tránsito usa el email exacto de esta fila (no el sugerido
-              del municipio si hay otra cuenta). Sin espacios en la pass.
+            <DialogTitle>Nueva contraseña</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  No se puede ver la contraseña actual (Auth solo guarda hash). Esto{' '}
+                  <strong className="text-foreground">reemplaza</strong> la anterior: la vieja
+                  deja de andar en web-transito.
+                </p>
+                <p>
+                  Escribí una nueva o tocá Generar. Después copiá la del modal de éxito (única
+                  fuente de verdad).
+                </p>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -598,6 +614,7 @@ export function TransitOperatorsPage() {
                   type={showResetPass ? 'text' : 'password'}
                   value={resetPassword}
                   onChange={(e) => setResetPassword(e.target.value)}
+                  placeholder="Escribí una nueva o Generar"
                   autoComplete="new-password"
                 />
                 <Button
@@ -648,15 +665,26 @@ export function TransitOperatorsPage() {
       <Dialog
         open={!!credentials}
         onOpenChange={(open) => {
-          if (!open) setCredentials(null);
+          if (!open) {
+            if (!credentialsCopied) {
+              toast.message('Copiá la contraseña antes de cerrar — no se vuelve a mostrar');
+            }
+            setCredentials(null);
+            setCredentialsCopied(false);
+          }
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          showCloseButton={credentialsCopied}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader>
-            <DialogTitle>Guardá estas credenciales</DialogTitle>
+            <DialogTitle>Copiá esta contraseña ahora</DialogTitle>
             <DialogDescription>
-              Pegá email + pass exactos en web-transito (Villa Dolores sugiere villadolores@ —
-              si reseteaste otra fila, usá el email de acá). La pass no se reconsulta.
+              Es la única vez que se muestra. Pegá email + pass exactos en web-transito. La
+              anterior ya no sirve.
             </DialogDescription>
           </DialogHeader>
           {credentials ? (
@@ -674,20 +702,26 @@ export function TransitOperatorsPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => void copyText(credentials.email, 'Email')}
+                  onClick={() => {
+                    void copyText(credentials.email, 'Email');
+                    setCredentialsCopied(true);
+                  }}
                 >
                   <Copy className="size-4" />
                 </Button>
               </div>
               <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">Contraseña</p>
+                  <p className="text-xs text-muted-foreground">Contraseña (nueva)</p>
                   <p className="break-all font-mono text-sm font-semibold">{credentials.password}</p>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => void copyText(credentials.password, 'Contraseña')}
+                  onClick={() => {
+                    void copyText(credentials.password, 'Contraseña');
+                    setCredentialsCopied(true);
+                  }}
                 >
                   <Copy className="size-4" />
                 </Button>
@@ -695,19 +729,37 @@ export function TransitOperatorsPage() {
               <Button
                 className="w-full min-h-12"
                 variant="secondary"
-                onClick={() =>
+                onClick={() => {
                   void copyText(
                     `${credentials.email}\n${credentials.password}`,
                     'Credenciales',
-                  )
-                }
+                  );
+                  setCredentialsCopied(true);
+                }}
               >
                 Copiar ambas
               </Button>
+              <label className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1 size-4 shrink-0"
+                  checked={credentialsCopied}
+                  onChange={(e) => setCredentialsCopied(e.target.checked)}
+                />
+                <span>Ya copié la contraseña (la necesito para entrar a tránsito)</span>
+              </label>
             </div>
           ) : null}
           <DialogFooter>
-            <Button onClick={() => setCredentials(null)}>Listo</Button>
+            <Button
+              disabled={!credentialsCopied}
+              onClick={() => {
+                setCredentials(null);
+                setCredentialsCopied(false);
+              }}
+            >
+              Listo
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
