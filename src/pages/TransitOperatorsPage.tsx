@@ -154,10 +154,14 @@ export function TransitOperatorsPage() {
     }) =>
       apiFetch<TransitOperatorCreateResult>('/admin/transit-operators', {
         method: 'POST',
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          ...body,
+          email: body.email.trim().toLowerCase(),
+          password: body.password.normalize('NFKC').trim(),
+        }),
       }),
     onSuccess: (result) => {
-      toast.success('Operador creado');
+      toast.success('Operador creado (pass verificada en Auth)');
       setCreateOpen(false);
       setCredentials({
         email: result.email,
@@ -194,12 +198,15 @@ export function TransitOperatorsPage() {
 
   const resetMutation = useMutation({
     mutationFn: ({ userId, password: pw }: { userId: string; password: string }) =>
-      apiFetch<{ email: string; password: string }>(`/admin/transit-operators/${userId}/password`, {
-        method: 'POST',
-        body: JSON.stringify({ password: pw }),
-      }),
+      apiFetch<{ email: string; password: string; message?: string }>(
+        `/admin/transit-operators/${userId}/password`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ password: pw.normalize('NFKC').trim() }),
+        },
+      ),
     onSuccess: (result) => {
-      toast.success('Contraseña actualizada');
+      toast.success(result.message ?? 'Contraseña actualizada y verificada en Auth');
       setResetOp(null);
       setResetPassword('');
       setCredentials({
@@ -257,7 +264,9 @@ export function TransitOperatorsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Operadores tránsito</h1>
           <p className="text-sm text-muted-foreground">
-            Una cuenta por municipio (email + contraseña). Se envían por fuera del panel.
+            Una cuenta por municipio (email + contraseña). El reset escribe en Supabase Auth wabdd
+            y se verifica con login real antes de mostrarte la pass. Guardala al copiarla; no se
+            reconsulta después.
           </p>
         </div>
         <div className="flex gap-2">
@@ -525,7 +534,10 @@ export function TransitOperatorsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Resetear contraseña</DialogTitle>
-            <DialogDescription>{resetOp?.email}</DialogDescription>
+            <DialogDescription>
+              Actualiza la contraseña en Supabase Auth (wabdd). Se valida con un login real antes
+              de confirmar. Guardá la pass: no se vuelve a mostrar.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
             <Label>Nueva contraseña</Label>
