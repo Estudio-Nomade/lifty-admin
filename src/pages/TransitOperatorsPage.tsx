@@ -62,9 +62,19 @@ function suggestedEmail(districtName: string) {
 }
 
 function randomPassword(len = 14) {
+  // No whitespace — web-transito trims; internal spaces would desync Auth vs login.
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$';
   const bytes = crypto.getRandomValues(new Uint8Array(len));
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+}
+
+function normalizeOperatorPassword(password: string): string {
+  return password.normalize('NFKC').trim();
+}
+
+function passwordReady(password: string): boolean {
+  const p = normalizeOperatorPassword(password);
+  return p.length >= 8 && !/\s/.test(p);
 }
 
 function formatDate(value: string | null | undefined) {
@@ -151,15 +161,24 @@ export function TransitOperatorsPage() {
       email: string;
       password: string;
       full_name?: string;
-    }) =>
-      apiFetch<TransitOperatorCreateResult>('/admin/transit-operators', {
+    }) => {
+      const password = normalizeOperatorPassword(body.password);
+      if (!passwordReady(password)) {
+        throw new ApiError(
+          400,
+          'BAD_PASSWORD',
+          'Contraseña inválida (mín. 8, sin espacios)',
+        );
+      }
+      return apiFetch<TransitOperatorCreateResult>('/admin/transit-operators', {
         method: 'POST',
         body: JSON.stringify({
           ...body,
           email: body.email.trim().toLowerCase(),
-          password: body.password.normalize('NFKC').trim(),
+          password,
         }),
-      }),
+      });
+    },
     onSuccess: (result) => {
       toast.success('Operador creado (pass verificada en Auth)');
       setCreateOpen(false);
@@ -197,21 +216,40 @@ export function TransitOperatorsPage() {
   });
 
   const resetMutation = useMutation({
-    mutationFn: ({ userId, password: pw }: { userId: string; password: string }) =>
-      apiFetch<{ email: string; password: string; message?: string }>(
+    mutationFn: ({
+      userId,
+      password: pw,
+      district_name,
+    }: {
+      userId: string;
+      password: string;
+      district_name?: string | null;
+    }) => {
+      const password = normalizeOperatorPassword(pw);
+      if (!passwordReady(password)) {
+        throw new ApiError(
+          400,
+          'BAD_PASSWORD',
+          'Contraseña inválida (mín. 8, sin espacios)',
+        );
+      }
+      return apiFetch<{ email: string; password: string; message?: string }>(
         `/admin/transit-operators/${userId}/password`,
         {
           method: 'POST',
-          body: JSON.stringify({ password: pw.normalize('NFKC').trim() }),
+          body: JSON.stringify({ password }),
         },
-      ),
+      ).then((result) => ({ ...result, district_name: district_name ?? null }));
+    },
     onSuccess: (result) => {
       toast.success(result.message ?? 'Contraseña actualizada y verificada en Auth');
       setResetOp(null);
       setResetPassword('');
+      setShowResetPass(false);
       setCredentials({
         email: result.email ?? '',
         password: result.password,
+        district_name: result.district_name,
       });
     },
     onError: (err) => {
@@ -453,7 +491,9 @@ export function TransitOperatorsPage() {
               Cancelar
             </Button>
             <Button
-              disabled={!districtId || !email || password.length < 8 || createMutation.isPending}
+              disabled={
+                !districtId || !email || !passwordReady(password) || createMutation.isPending
+              }
               onClick={() =>
                 createMutation.mutate({
                   district_id: districtId,
@@ -535,36 +575,50 @@ export function TransitOperatorsPage() {
           <DialogHeader>
             <DialogTitle>Resetear contraseña</DialogTitle>
             <DialogDescription>
-              Actualiza la contraseña en Supabase Auth (wabdd). Se valida con un login real antes
-              de confirmar. Guardá la pass: no se vuelve a mostrar.
+              Auth wabdd · el login de tránsito usa el email exacto de esta fila (no el sugerido
+              del municipio si hay otra cuenta). Sin espacios en la pass.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label>Nueva contraseña</Label>
-            <div className="flex gap-2">
-              <Input
-                className="min-h-12"
-                type={showResetPass ? 'text' : 'password'}
-                value={resetPassword}
-                onChange={(e) => setResetPassword(e.target.value)}
-                autoComplete="new-password"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-12"
-                onClick={() => setShowResetPass((v) => !v)}
-              >
-                {showResetPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-12"
-                onClick={() => setResetPassword(randomPassword())}
-              >
-                Generar
-              </Button>
+          <div className="space-y-3 py-2">
+            {resetOp ? (
+              <div className="rounded-md border bg-muted/40 px-3 py-2">
+                <p className="text-xs text-muted-foreground">Email a loguear en web-transito</p>
+                <p className="font-mono text-sm font-medium">{resetOp.email}</p>
+                {resetOp.district_name ? (
+                  <p className="mt-1 text-xs text-muted-foreground">{resetOp.district_name}</p>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <Label>Nueva contraseña</Label>
+              <div className="flex gap-2">
+                <Input
+                  className="min-h-12"
+                  type={showResetPass ? 'text' : 'password'}
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-12"
+                  onClick={() => setShowResetPass((v) => !v)}
+                >
+                  {showResetPass ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-12"
+                  onClick={() => setResetPassword(randomPassword())}
+                >
+                  Generar
+                </Button>
+              </div>
+              {resetPassword && !passwordReady(resetPassword) ? (
+                <p className="text-xs text-destructive">Mín. 8 caracteres, sin espacios</p>
+              ) : null}
             </div>
           </div>
           <DialogFooter>
@@ -572,10 +626,16 @@ export function TransitOperatorsPage() {
               Cancelar
             </Button>
             <Button
-              disabled={!resetOp || resetPassword.length < 8 || resetMutation.isPending}
+              disabled={
+                !resetOp || !passwordReady(resetPassword) || resetMutation.isPending
+              }
               onClick={() =>
                 resetOp &&
-                resetMutation.mutate({ userId: resetOp.id, password: resetPassword })
+                resetMutation.mutate({
+                  userId: resetOp.id,
+                  password: resetPassword,
+                  district_name: resetOp.district_name,
+                })
               }
             >
               Actualizar
@@ -594,7 +654,8 @@ export function TransitOperatorsPage() {
           <DialogHeader>
             <DialogTitle>Guardá estas credenciales</DialogTitle>
             <DialogDescription>
-              La contraseña no se vuelve a mostrar. Enviála por un canal seguro fuera del panel.
+              Pegá email + pass exactos en web-transito (Villa Dolores sugiere villadolores@ —
+              si reseteaste otra fila, usá el email de acá). La pass no se reconsulta.
             </DialogDescription>
           </DialogHeader>
           {credentials ? (
@@ -605,9 +666,9 @@ export function TransitOperatorsPage() {
                 </p>
               ) : null}
               <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
-                <div>
-                  <p className="text-xs text-muted-foreground">Email</p>
-                  <p className="font-mono text-sm">{credentials.email}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">Email (login tránsito)</p>
+                  <p className="break-all font-mono text-sm font-semibold">{credentials.email}</p>
                 </div>
                 <Button
                   variant="ghost"
@@ -618,9 +679,9 @@ export function TransitOperatorsPage() {
                 </Button>
               </div>
               <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">Contraseña</p>
-                  <p className="font-mono text-sm">{credentials.password}</p>
+                  <p className="break-all font-mono text-sm font-semibold">{credentials.password}</p>
                 </div>
                 <Button
                   variant="ghost"
