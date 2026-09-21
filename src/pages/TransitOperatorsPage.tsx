@@ -302,9 +302,10 @@ export function TransitOperatorsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Operadores tránsito</h1>
           <p className="text-sm text-muted-foreground">
-            Una cuenta por municipio (email + contraseña). El reset escribe en Supabase Auth wabdd
-            y se verifica con login real antes de mostrarte la pass. Guardala al copiarla; no se
-            reconsulta después.
+            Una cuenta por municipio (email + contraseña). El municipio aparece en web-transito
+            cuando tiene operador acá; solo esos mails entran al panel de tránsito. El reset escribe
+            en Supabase Auth wabdd y se verifica con login real antes de mostrarte la pass. Guardala
+            al copiarla; no se reconsulta después.
           </p>
         </div>
         <div className="flex gap-2">
