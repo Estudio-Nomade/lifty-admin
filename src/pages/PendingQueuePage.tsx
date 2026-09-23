@@ -1,4 +1,5 @@
 import { IdentificationBadge } from '@/components/IdentificationBadge';
+import { PushAlertsCard } from '@/components/PushAlertsCard';
 import { ReviewBadge } from '@/components/ReviewBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,6 +66,8 @@ export function PendingQueuePage() {
         </Button>
       </div>
 
+      <PushAlertsCard />
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Pendientes</CardTitle>
@@ -94,7 +97,8 @@ export function PendingQueuePage() {
             <div className="rounded-lg border border-dashed border-border bg-muted/40 px-6 py-16 text-center">
               <p className="text-base font-medium text-navy">No hay conductores en review</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Cuando suban docs y queden en cola, aparecen acá.
+                Solo aparecen con status=review (docs completos). Si está en Conductores pero no
+                acá, todavía falta onboarding o reconciliar status.
               </p>
             </div>
           ) : (
