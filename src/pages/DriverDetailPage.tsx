@@ -155,7 +155,7 @@ export function DriverDetailPage() {
     );
   }
 
-  const canReview = data.admin_review_status === 'pending';
+  const canReview = data.status === 'review' && data.admin_review_status === 'pending';
   const activeDocs = data.documents.filter((d) => d.status !== 'superseded');
   const supersededDocs = data.documents.filter((d) => d.status === 'superseded');
   const visibleDocs = showSuperseded ? data.documents : activeDocs;
