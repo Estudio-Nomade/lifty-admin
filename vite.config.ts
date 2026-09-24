@@ -9,6 +9,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: [
         'favicon.png',
@@ -55,20 +58,12 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        navigateFallback: 'index.html',
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) =>
-              url.hostname.includes('supabase.co') ||
-              url.pathname.startsWith('/api') ||
-              url.port === '3001',
-            handler: 'NetworkOnly',
-          },
-        ],
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
       devOptions: {
         enabled: false,
+        type: 'module',
       },
     }),
   ],
