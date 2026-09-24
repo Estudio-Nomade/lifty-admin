@@ -145,14 +145,13 @@ export type ReviewResult = {
   message: string;
 };
 
-/** Canonical DOC_TYPES — must match backend shared/lib/documents.ts */
+/** Canonical DOC_TYPES — must match backend shared/lib/documents.ts (required set). */
 export const DOC_TYPES = [
   'license_front',
   'license_back',
   'registration_front',
   'registration_back',
   'insurance_front',
-  'insurance_back',
   'background_check_front',
   'rndg_front',
 ] as const;
@@ -164,7 +163,7 @@ export const DOC_LABELS: Record<string, string> = {
   license_back: 'Licencia (dorso)',
   registration_front: 'Cédula / título (frente)',
   registration_back: 'Cédula / título (dorso)',
-  insurance_front: 'Seguro (frente)',
+  insurance_front: 'Seguro del vehículo',
   insurance_back: 'Seguro (dorso)',
   background_check_front: 'Antecedentes',
   rndg_front: 'RNDG',

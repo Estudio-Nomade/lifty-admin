@@ -32,6 +32,10 @@ function looksLikeImage(url: string) {
   return /\.(png|jpe?g|webp|gif|bmp|avif)(\?|$)/i.test(url) || /\/image\//i.test(url);
 }
 
+function looksLikePdf(url: string) {
+  return /\.pdf(\?|$)/i.test(url) || /\/pdf/i.test(url) || /application%2Fpdf/i.test(url);
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return '—';
   try {
@@ -63,6 +67,7 @@ function DocPreview({
 }) {
   const [broken, setBroken] = useState(false);
   const tryImage = looksLikeImage(doc.file_url) && !broken;
+  const isPdf = looksLikePdf(doc.file_url);
 
   return (
     <button
@@ -81,6 +86,9 @@ function DocPreview({
       ) : (
         <div className="flex flex-col items-center gap-1 text-muted-foreground">
           <FileText className="size-10" />
+          <span className="rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-foreground">
+            {isPdf ? 'PDF' : 'Archivo'}
+          </span>
           <span className="text-xs">Click para abrir</span>
         </div>
       )}
@@ -521,6 +529,7 @@ export function DriverDetailPage() {
 function DocLightboxBody({ url, alt }: { url: string; alt: string }) {
   const [broken, setBroken] = useState(false);
   const tryImage = looksLikeImage(url) && !broken;
+  const isPdf = looksLikePdf(url);
 
   if (tryImage) {
     return (
@@ -530,6 +539,21 @@ function DocLightboxBody({ url, alt }: { url: string; alt: string }) {
         className="max-h-[70vh] w-auto max-w-full object-contain"
         onError={() => setBroken(true)}
       />
+    );
+  }
+
+  if (isPdf) {
+    return (
+      <div className="flex w-full flex-col gap-2">
+        <iframe
+          title={alt}
+          src={url}
+          className="h-[70vh] w-full rounded-md border-0 bg-white"
+        />
+        <p className="text-center text-xs text-muted-foreground">
+          Si el PDF no carga acá (bloqueo del navegador), usá &quot;Abrir en pestaña&quot;.
+        </p>
+      </div>
     );
   }
 
