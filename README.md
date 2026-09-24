@@ -32,7 +32,10 @@ bun run dev:backend   # :3001
 |-----|--------|
 | `VITE_SUPABASE_URL` | Proyecto **Lifty** `wabddbkwugepkwrgzhpk` |
 | `VITE_SUPABASE_ANON_KEY` | anon/publishable Lifty |
-| `VITE_API_URL` | `http://127.0.0.1:3001` en desktop local |
+| `VITE_API_URL` | `http://127.0.0.1:3001` en desktop local; prod Railway sin `/api` al final |
+| `VITE_VAPID_PUBLIC_KEY` | Opcional; misma public key que Railway `VAPID_PUBLIC_KEY` (web push PWA) |
+
+**Web push (cola nuevo conductor):** después de login → card **Activar alertas** en Pendientes. Requiere HTTPS/PWA instalada, backend con VAPID + migración `0044`. Runbook monorepo: `docs/runbooks/admin-web-push.md`.
 
 **No** uses keys de web-tránsito (`ykchnss…`).
 
