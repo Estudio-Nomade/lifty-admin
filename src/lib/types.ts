@@ -140,7 +140,7 @@ export type DriverDetail = {
 
 export type ReviewResult = {
   driver_id: string;
-  action: 'approve' | 'reject';
+  action: 'approve' | 'reject' | 'request_changes';
   status: string;
   message: string;
 };

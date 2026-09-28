@@ -101,7 +101,9 @@ export function DriverDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState('');
-  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | 'request_changes' | null>(
+    null,
+  );
   const [previewDoc, setPreviewDoc] = useState<DriverDocument | null>(null);
   const [showSuperseded, setShowSuperseded] = useState(false);
 
@@ -112,17 +114,31 @@ export function DriverDetailPage() {
   });
 
   const reviewMutation = useMutation({
-    mutationFn: (action: 'approve' | 'reject') =>
-      apiFetch<ReviewResult>(`/admin/drivers/${id}/review`, {
+    mutationFn: (action: 'approve' | 'reject' | 'request_changes') => {
+      const trimmed = notes.trim();
+      if (action === 'request_changes' && trimmed.length < 5) {
+        return Promise.reject(
+          new ApiError(400, 'NOTES_REQUIRED', 'Escribí qué docs faltan o qué corregir (mín. 5 caracteres)'),
+        );
+      }
+      return apiFetch<ReviewResult>(`/admin/drivers/${id}/review`, {
         method: 'POST',
-        body: JSON.stringify({ action, notes: notes.trim() || undefined }),
-      }),
+        body: JSON.stringify({
+          action,
+          notes: trimmed || undefined,
+        }),
+      });
+    },
     onSuccess: (result) => {
-      toast.success(
-        result.action === 'approve'
-          ? 'Conductor aprobado. Puede conectarse; debe retirar logos/stickers en 30 días o se suspende la cuenta.'
-          : 'Conductor rechazado.',
-      );
+      if (result.action === 'request_changes') {
+        toast.success('Mensaje enviado al conductor');
+      } else if (result.action === 'approve') {
+        toast.success(
+          'Conductor aprobado. Puede conectarse; debe retirar logos/stickers en 30 días o se suspende la cuenta.',
+        );
+      } else {
+        toast.success('Conductor rechazado.');
+      }
       void queryClient.invalidateQueries({ queryKey: ['admin', 'pending'] });
       void queryClient.invalidateQueries({ queryKey: ['admin', 'drivers'] });
       void queryClient.invalidateQueries({ queryKey: ['admin', 'driver', id] });
@@ -444,16 +460,35 @@ export function DriverDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Notas de revisión</CardTitle>
-            <CardDescription>Opcional en approve; recomendadas al rechazar.</CardDescription>
+            <CardDescription>
+              Escribí qué docs faltan o qué corregir. «Enviar al conductor» rechaza la review, le manda
+              notificación y lo manda a volver a subir papeles.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Observaciones para el conductor u ops…"
+              placeholder="Ej: Falta dorso de la licencia"
               rows={4}
               maxLength={500}
             />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">{notes.trim().length}/500</p>
+              <Button
+                type="button"
+                disabled={notes.trim().length < 5 || reviewMutation.isPending}
+                onClick={() => {
+                  if (notes.trim().length < 5) {
+                    toast.error('Escribí qué docs faltan o qué corregir (mín. 5 caracteres)');
+                    return;
+                  }
+                  setConfirmAction('request_changes');
+                }}
+              >
+                Enviar al conductor
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : null}
@@ -462,12 +497,18 @@ export function DriverDetailPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {confirmAction === 'approve' ? '¿Aprobar conductor?' : '¿Rechazar conductor?'}
+              {confirmAction === 'approve'
+                ? '¿Aprobar conductor?'
+                : confirmAction === 'request_changes'
+                  ? '¿Enviar este mensaje al conductor?'
+                  : '¿Rechazar conductor?'}
             </DialogTitle>
             <DialogDescription>
               {confirmAction === 'approve'
                 ? 'Se aprueba la review de plataforma. El conductor puede conectarse y tiene 30 días para retirar logos/stickers en tránsito. Si se pasa ese plazo, la cuenta se suspende hasta que tránsito confirme la entrega.'
-                : 'Se rechazan los documentos pendientes. El conductor deberá volver a subir papeles.'}
+                : confirmAction === 'request_changes'
+                  ? 'Se rechaza la review, se guarda el mensaje y el conductor recibe notificación (mail + push) para corregir documentación.'
+                  : 'Se rechazan los documentos pendientes. El conductor deberá volver a subir papeles.'}
             </DialogDescription>
           </DialogHeader>
           <Separator />
@@ -481,7 +522,11 @@ export function DriverDetailPage() {
               Cancelar
             </Button>
             <Button
-              variant={confirmAction === 'reject' ? 'destructive' : 'default'}
+              variant={
+                confirmAction === 'reject' || confirmAction === 'request_changes'
+                  ? 'destructive'
+                  : 'default'
+              }
               disabled={reviewMutation.isPending}
               onClick={() => {
                 if (confirmAction) reviewMutation.mutate(confirmAction);
@@ -491,7 +536,9 @@ export function DriverDetailPage() {
                 ? 'Guardando…'
                 : confirmAction === 'approve'
                   ? 'Confirmar aprobación'
-                  : 'Confirmar rechazo'}
+                  : confirmAction === 'request_changes'
+                    ? 'Enviar mensaje'
+                    : 'Confirmar rechazo'}
             </Button>
           </DialogFooter>
         </DialogContent>
