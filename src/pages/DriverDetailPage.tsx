@@ -461,8 +461,9 @@ export function DriverDetailPage() {
           <CardHeader>
             <CardTitle className="text-base">Notas de revisión</CardTitle>
             <CardDescription>
-              Escribí qué docs faltan o qué corregir. «Enviar al conductor» rechaza la review, le manda
-              notificación y lo manda a volver a subir papeles.
+              Escribí qué docs faltan o qué corregir. «Enviar al conductor» le manda el mensaje
+              (mail + push) y queda en revisión: no aprueba ni rechaza. Después podés Aprobar o
+              Rechazar.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -507,7 +508,7 @@ export function DriverDetailPage() {
               {confirmAction === 'approve'
                 ? 'Se aprueba la review de plataforma. El conductor puede conectarse y tiene 30 días para retirar logos/stickers en tránsito. Si se pasa ese plazo, la cuenta se suspende hasta que tránsito confirme la entrega.'
                 : confirmAction === 'request_changes'
-                  ? 'Se rechaza la review, se guarda el mensaje y el conductor recibe notificación (mail + push) para corregir documentación.'
+                  ? 'El conductor recibe el mensaje y puede volver a subir papeles. La ficha sigue en revisión (no se aprueba ni se rechaza).'
                   : 'Se rechazan los documentos pendientes. El conductor deberá volver a subir papeles.'}
             </DialogDescription>
           </DialogHeader>
@@ -522,11 +523,7 @@ export function DriverDetailPage() {
               Cancelar
             </Button>
             <Button
-              variant={
-                confirmAction === 'reject' || confirmAction === 'request_changes'
-                  ? 'destructive'
-                  : 'default'
-              }
+              variant={confirmAction === 'reject' ? 'destructive' : 'default'}
               disabled={reviewMutation.isPending}
               onClick={() => {
                 if (confirmAction) reviewMutation.mutate(confirmAction);
