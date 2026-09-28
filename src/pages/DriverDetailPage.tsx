@@ -184,9 +184,14 @@ export function DriverDetailPage() {
   const supersededDocs = data.documents.filter((d) => d.status === 'superseded');
   const visibleDocs = showSuperseded ? data.documents : activeDocs;
 
-  const presentTypes = new Set(activeDocs.map((d) => d.doc_type));
-  const missingTypes = DOC_TYPES.filter((t) => !presentTypes.has(t));
+  const presentTypes = new Set(
+    activeDocs.filter((d) => d.status !== 'rejected').map((d) => d.doc_type),
+  );
+  const missingTypes =
+    data.missing_doc_types ?? DOC_TYPES.filter((t) => !presentTypes.has(t));
   const presentRequired = DOC_TYPES.filter((t) => presentTypes.has(t));
+  const docsPendingReview = data.documents_pending_review === true;
+  const waitingOnDriver = data.status === 'rejected' && missingTypes.length > 0;
 
   const districtDisplay = data.district_name
     ? data.district_province
@@ -224,6 +229,11 @@ export function DriverDetailPage() {
           </p>
           <div className="flex flex-wrap gap-2">
             <ReviewBadge status={data.admin_review_status} />
+            {docsPendingReview && canReview ? (
+              <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100">
+                Docs actualizados — revisar
+              </Badge>
+            ) : null}
             <IdentificationBadge
               status={data.identification_status}
               phase={data.identification_phase}
@@ -268,6 +278,17 @@ export function DriverDetailPage() {
           >
             Aprobar
           </Button>
+        </div>
+      ) : null}
+
+      {waitingOnDriver ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-medium">Esperando que el conductor suba:</p>
+          <ul className="mt-1 list-inside list-disc text-amber-900/90">
+            {missingTypes.map((t) => (
+              <li key={t}>{docLabel(t)}</li>
+            ))}
+          </ul>
         </div>
       ) : null}
 

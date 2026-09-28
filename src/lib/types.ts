@@ -119,6 +119,8 @@ export type DriverDetail = {
   admin_review_status: string;
   admin_reviewed_at: string | null;
   admin_review_notes: string | null;
+  documents_pending_review?: boolean;
+  missing_doc_types?: string[];
   identification_status: IdentificationStatus;
   identification_issued_at: string | null;
   identification_external_ref: string | null;
