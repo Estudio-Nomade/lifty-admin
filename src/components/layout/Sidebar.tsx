@@ -14,9 +14,9 @@ export function Sidebar({ pendingCount }: SidebarProps) {
     <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
       <div className="flex items-center gap-2 border-b border-sidebar-border px-4 py-5">
         <img
-          src="/lifty-logo.png"
+          src="/lifty-mark-l.png"
           alt="Lifty"
-          className="h-9 w-9 rounded-lg object-contain bg-white/10 p-0.5"
+          className="h-8 w-auto object-contain"
         />
         <div>
           <p className="text-sm font-semibold tracking-tight">Lifty Admin</p>

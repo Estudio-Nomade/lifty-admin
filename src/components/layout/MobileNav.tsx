@@ -40,9 +40,9 @@ export function MobileNav({ pendingCount }: MobileNavProps) {
         <SheetHeader className="border-b border-sidebar-border px-4 py-4 text-left">
           <div className="flex items-center gap-2 pr-8">
             <img
-              src="/lifty-logo.png"
+              src="/lifty-mark-l.png"
               alt=""
-              className="h-9 w-9 rounded-lg bg-white/10 object-contain p-0.5"
+              className="h-8 w-auto object-contain"
             />
             <div>
               <SheetTitle className="text-sidebar-foreground">Lifty Admin</SheetTitle>

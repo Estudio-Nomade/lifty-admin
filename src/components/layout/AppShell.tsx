@@ -24,9 +24,9 @@ export function AppShell({ children }: AppShellProps) {
         <MobileNav pendingCount={pendingCount} />
         <div className="flex min-w-0 flex-1 items-center gap-2 py-2.5">
           <img
-            src="/lifty-logo.png"
+            src="/lifty-mark-l.png"
             alt=""
-            className="h-8 w-8 shrink-0 rounded-md bg-white/10 object-contain p-0.5"
+            className="h-8 w-auto shrink-0 object-contain"
           />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold tracking-tight">Lifty Admin</p>
