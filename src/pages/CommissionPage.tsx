@@ -93,9 +93,15 @@ export function CommissionPage() {
         method: 'PUT',
         body: JSON.stringify({ value }),
       }),
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Fecha de inicio actualizada');
       setConfirmStartDate(false);
+      // Keep draft + cache in sync so banner/configured clear without a full reload race.
+      setStartDateDraft(data.start_date);
+      queryClient.setQueryData<CommissionStartDate>(['admin', 'commission', 'start-date'], {
+        start_date: data.start_date,
+        configured: data.configured ?? true,
+      });
       invalidateAll();
     },
     onError: (err) => {
@@ -185,6 +191,16 @@ export function CommissionPage() {
     phaseMutation.mutate({ id: editPhase.id, body });
   };
 
+  // Allow save when API only returned the default (configured=false) even if the draft equals
+  // that default — otherwise "Guardar fecha" stays forever disabled and ops cannot pin launch.
+  const sameStartDateAsLoaded =
+    Boolean(startDateDraft) && startDateDraft === startDateQ.data?.start_date;
+  const startDateNeedsPersist = startDateQ.data?.configured === false;
+  const canSaveStartDate =
+    Boolean(startDateDraft) &&
+    (!sameStartDateAsLoaded || startDateNeedsPersist) &&
+    !startDateMutation.isPending;
+
   const loading = currentQ.isLoading || phasesQ.isLoading || startDateQ.isLoading;
   const allFailed = currentQ.isError && phasesQ.isError && startDateQ.isError;
 
@@ -256,8 +272,9 @@ export function CommissionPage() {
 
       {startDateQ.data && startDateQ.data.configured === false ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          La fecha de inicio aún no está guardada en config. Se muestra el default; guardala para
-          fijarla en la plataforma.
+          La fecha de inicio aún no está guardada en config. Se muestra el default; usá{' '}
+          <strong>Guardar fecha</strong> para fijarla en la plataforma (aunque dejes el mismo
+          default).
         </div>
       ) : null}
 
@@ -307,14 +324,20 @@ export function CommissionPage() {
             />
           </div>
           <Button
-            disabled={
-              !startDateDraft ||
-              startDateDraft === startDateQ.data?.start_date ||
-              startDateMutation.isPending
+            type="button"
+            disabled={!canSaveStartDate}
+            title={
+              !startDateDraft
+                ? 'Elegí una fecha'
+                : sameStartDateAsLoaded && !startDateNeedsPersist
+                  ? 'No hay cambios respecto a la fecha guardada'
+                  : startDateNeedsPersist && sameStartDateAsLoaded
+                    ? 'Fijar el default en la plataforma'
+                    : 'Guardar fecha de inicio'
             }
             onClick={() => setConfirmStartDate(true)}
           >
-            Guardar fecha
+            {startDateMutation.isPending ? 'Guardando…' : 'Guardar fecha'}
           </Button>
         </CardContent>
       </Card>
