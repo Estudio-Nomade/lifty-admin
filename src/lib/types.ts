@@ -180,18 +180,19 @@ export function docLabel(docType: string): string {
 export type CommissionPhase = {
   id: string;
   name: string;
-  month_start: number;
-  month_end: number | null;
+  day_start: number;
+  day_end: number | null;
   base_rate: number;
-  monthly_increment: number | null;
+  daily_increment: number | null;
   cap_rate: number | null;
   updated_at?: string;
 };
 
 export type CommissionCurrent = {
   phase: string;
-  currentMonth: number;
+  currentDay: number;
   rate: number;
+  start_date?: string;
 };
 
 export type CommissionStartDate = {

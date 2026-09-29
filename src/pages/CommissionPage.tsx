@@ -42,10 +42,10 @@ function fractionFromPctInput(raw: string): number | null {
   return n / 100;
 }
 
-function formatMonthRange(start: number, end: number | null) {
-  if (end == null) return `Mes ${start}+`;
-  if (start === end) return `Mes ${start}`;
-  return `Meses ${start}–${end}`;
+function formatDayRange(start: number, end: number | null) {
+  if (end == null) return `Día ${start}+`;
+  if (start === end) return `Día ${start}`;
+  return `Días ${start}–${end}`;
 }
 
 export function CommissionPage() {
@@ -55,10 +55,10 @@ export function CommissionPage() {
   const [editPhase, setEditPhase] = useState<CommissionPhase | null>(null);
   const [editForm, setEditForm] = useState({
     name: '',
-    month_start: '',
-    month_end: '',
+    day_start: '',
+    day_end: '',
     base_rate_pct: '',
-    monthly_increment_pct: '',
+    daily_increment_pct: '',
     cap_rate_pct: '',
   });
 
@@ -123,13 +123,13 @@ export function CommissionPage() {
     setEditPhase(phase);
     setEditForm({
       name: phase.name,
-      month_start: String(phase.month_start),
-      month_end: phase.month_end == null ? '' : String(phase.month_end),
+      day_start: String(phase.day_start),
+      day_end: phase.day_end == null ? '' : String(phase.day_end),
       base_rate_pct: (phase.base_rate * 100).toFixed(2).replace(/\.?0+$/, ''),
-      monthly_increment_pct:
-        phase.monthly_increment == null
+      daily_increment_pct:
+        phase.daily_increment == null
           ? ''
-          : (phase.monthly_increment * 100).toFixed(2).replace(/\.?0+$/, ''),
+          : (phase.daily_increment * 100).toFixed(4).replace(/\.?0+$/, ''),
       cap_rate_pct:
         phase.cap_rate == null ? '' : (phase.cap_rate * 100).toFixed(2).replace(/\.?0+$/, ''),
     });
@@ -142,25 +142,35 @@ export function CommissionPage() {
       toast.error('Base rate inválido (0–100%)');
       return;
     }
+    const dayStart = Number.parseInt(editForm.day_start, 10);
+    if (!Number.isFinite(dayStart) || dayStart < 1) {
+      toast.error('Día inicio inválido (≥ 1)');
+      return;
+    }
     const body: Record<string, unknown> = {
       name: editForm.name.trim() || editPhase.name,
-      month_start: Number.parseInt(editForm.month_start, 10) || editPhase.month_start,
+      day_start: dayStart,
       base_rate: base,
     };
-    if (editForm.month_end.trim() === '') {
-      body.month_end = null;
+    if (editForm.day_end.trim() === '') {
+      body.day_end = null;
     } else {
-      body.month_end = Number.parseInt(editForm.month_end, 10);
+      const dayEnd = Number.parseInt(editForm.day_end, 10);
+      if (!Number.isFinite(dayEnd) || dayEnd < dayStart) {
+        toast.error('Día fin debe ser ≥ día inicio (o vacío = ∞)');
+        return;
+      }
+      body.day_end = dayEnd;
     }
-    if (editForm.monthly_increment_pct.trim() === '') {
-      body.monthly_increment = null;
+    if (editForm.daily_increment_pct.trim() === '') {
+      body.daily_increment = null;
     } else {
-      const inc = fractionFromPctInput(editForm.monthly_increment_pct);
+      const inc = fractionFromPctInput(editForm.daily_increment_pct);
       if (inc == null) {
         toast.error('Incremento inválido');
         return;
       }
-      body.monthly_increment = inc;
+      body.daily_increment = inc;
     }
     if (editForm.cap_rate_pct.trim() === '') {
       body.cap_rate = null;
@@ -231,7 +241,7 @@ export function CommissionPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-navy">Comisiones</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          La comisión es global para todos los conductores activos según el mes desde la fecha de
+          La comisión es global para todos los conductores activos según el día desde la fecha de
           inicio. No hay % por conductor.
         </p>
       </div>
@@ -257,7 +267,7 @@ export function CommissionPage() {
             <Percent className="size-4" />
             Fase actual
           </CardTitle>
-          <CardDescription>Según fecha de inicio y mes calendario</CardDescription>
+          <CardDescription>Según fecha de inicio y días transcurridos</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-8">
           <div>
@@ -265,8 +275,8 @@ export function CommissionPage() {
             <p className="text-xl font-semibold text-navy">{current?.phase ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Mes N</p>
-            <p className="text-xl font-semibold text-navy">{current?.currentMonth ?? '—'}</p>
+            <p className="text-xs text-muted-foreground">Día N</p>
+            <p className="text-xl font-semibold text-navy">{current?.currentDay ?? '—'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Rate efectivo</p>
@@ -281,7 +291,8 @@ export function CommissionPage() {
         <CardHeader>
           <CardTitle className="text-base">Fecha de inicio</CardTitle>
           <CardDescription>
-            Define el mes 1 del modelo de fases. Cambiarla recalcula el mes de todas las fases.
+            Define el día 1 del modelo de fases. Cambiarla recalcula el día actual y la fase
+            efectiva.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
@@ -312,7 +323,8 @@ export function CommissionPage() {
         <CardHeader>
           <CardTitle className="text-base">Fases</CardTitle>
           <CardDescription>
-            Rates en % en pantalla; la API recibe fracción 0–1 (ej. 10% → 0.10).
+            Rangos en días desde la fecha de inicio. Rates en % en pantalla; la API recibe fracción
+            0–1 (ej. 10% → 0.10).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -324,9 +336,9 @@ export function CommissionPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
-                    <TableHead>Meses</TableHead>
+                    <TableHead>Días</TableHead>
                     <TableHead>Base</TableHead>
-                    <TableHead>Incremento/mes</TableHead>
+                    <TableHead>Incremento/día</TableHead>
                     <TableHead>Cap</TableHead>
                     <TableHead className="w-20" />
                   </TableRow>
@@ -342,9 +354,9 @@ export function CommissionPage() {
                             {isCurrent ? <Badge>Actual</Badge> : null}
                           </span>
                         </TableCell>
-                        <TableCell>{formatMonthRange(p.month_start, p.month_end)}</TableCell>
+                        <TableCell>{formatDayRange(p.day_start, p.day_end)}</TableCell>
                         <TableCell>{pctFromFraction(p.base_rate)}</TableCell>
-                        <TableCell>{pctFromFraction(p.monthly_increment)}</TableCell>
+                        <TableCell>{pctFromFraction(p.daily_increment)}</TableCell>
                         <TableCell>{pctFromFraction(p.cap_rate)}</TableCell>
                         <TableCell>
                           <Button
@@ -372,7 +384,7 @@ export function CommissionPage() {
           <DialogHeader>
             <DialogTitle>¿Cambiar fecha de inicio?</DialogTitle>
             <DialogDescription>
-              Se recalcula el mes de todas las fases a partir de {startDateDraft}. El rate efectivo
+              Se recalcula el día de todas las fases a partir de {startDateDraft}. El rate efectivo
               puede cambiar de inmediato.
             </DialogDescription>
           </DialogHeader>
@@ -395,7 +407,8 @@ export function CommissionPage() {
           <DialogHeader>
             <DialogTitle>Editar fase</DialogTitle>
             <DialogDescription>
-              Ingresá rates en % (ej. 10 = 10%). Se envían a la API como fracción 0–1.
+              Ingresá rates en % (ej. 10 = 10%). Se envían a la API como fracción 0–1. Día fin vacío
+              = abierto (∞).
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
@@ -409,23 +422,23 @@ export function CommissionPage() {
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="ph-ms">Mes inicio</Label>
+                <Label htmlFor="ph-ds">Día inicio</Label>
                 <Input
-                  id="ph-ms"
+                  id="ph-ds"
                   type="number"
                   min={1}
-                  value={editForm.month_start}
-                  onChange={(e) => setEditForm((f) => ({ ...f, month_start: e.target.value }))}
+                  value={editForm.day_start}
+                  onChange={(e) => setEditForm((f) => ({ ...f, day_start: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ph-me">Mes fin (vacío = ∞)</Label>
+                <Label htmlFor="ph-de">Día fin (vacío = ∞)</Label>
                 <Input
-                  id="ph-me"
+                  id="ph-de"
                   type="number"
                   min={1}
-                  value={editForm.month_end}
-                  onChange={(e) => setEditForm((f) => ({ ...f, month_end: e.target.value }))}
+                  value={editForm.day_end}
+                  onChange={(e) => setEditForm((f) => ({ ...f, day_end: e.target.value }))}
                 />
               </div>
             </div>
@@ -440,13 +453,13 @@ export function CommissionPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ph-inc">Incr. %/mes</Label>
+                <Label htmlFor="ph-inc">Incr. %/día</Label>
                 <Input
                   id="ph-inc"
                   inputMode="decimal"
-                  value={editForm.monthly_increment_pct}
+                  value={editForm.daily_increment_pct}
                   onChange={(e) =>
-                    setEditForm((f) => ({ ...f, monthly_increment_pct: e.target.value }))
+                    setEditForm((f) => ({ ...f, daily_increment_pct: e.target.value }))
                   }
                 />
               </div>
