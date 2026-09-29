@@ -72,7 +72,7 @@ export function LoginPage() {
           <img
             src="/lifty-logo.png"
             alt="Lifty"
-            className="mb-3 h-14 w-auto max-w-[10rem] object-contain"
+            className="mb-3 h-14 w-auto max-w-[12rem] object-contain"
           />
           <CardTitle className="text-navy">Lifty Admin</CardTitle>
           <CardDescription>Panel de operaciones · revisión de conductores</CardDescription>
