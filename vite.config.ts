@@ -17,6 +17,7 @@ export default defineConfig({
         'favicon.png',
         'apple-touch-icon.png',
         'lifty-logo.png',
+        'lifty-mark-l.png',
         'pwa-192.png',
         'pwa-512.png',
         'pwa-192-maskable.png',
