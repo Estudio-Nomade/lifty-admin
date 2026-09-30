@@ -13,15 +13,25 @@ import {
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiError, apiFetch } from '@/lib/api';
 import {
   DOC_TYPES,
   docLabel,
+  type AdminDriverTripsResponse,
   type DriverDetail,
   type DriverDocument,
   type ReviewResult,
 } from '@/lib/types';
+import { formatArs } from '@/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, Circle, ExternalLink, FileText, XCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -144,7 +154,7 @@ export function DriverDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ['admin', 'driver', id] });
       setConfirmAction(null);
       if (result.action === 'approve' || result.action === 'reject') {
-        navigate('/');
+        navigate('/pending');
       }
     },
     onError: (err) => {
@@ -171,7 +181,7 @@ export function DriverDetailPage() {
         </p>
         <div className="mt-4 flex justify-center gap-2">
           <Button variant="outline" asChild>
-            <Link to="/">Volver</Link>
+            <Link to="/drivers">Volver</Link>
           </Button>
           <Button onClick={() => void refetch()}>Reintentar</Button>
         </div>
@@ -477,6 +487,8 @@ export function DriverDetailPage() {
         </CardContent>
       </Card>
 
+      <DriverTripsSection driverId={data.id} />
+
       {canReview ? (
         <Card>
           <CardHeader>
@@ -636,5 +648,204 @@ function Row({ label, value }: { label: string; value: string | null | undefined
       <span className="text-muted-foreground">{label}</span>
       <span className="max-w-[60%] text-right font-medium text-navy">{value || '—'}</span>
     </div>
+  );
+}
+
+const TRIPS_PAGE_SIZE = 20;
+
+function tripStatusLabel(status: string) {
+  const map: Record<string, string> = {
+    completed: 'Completado',
+    rated: 'Calificado',
+    cancelled: 'Cancelado',
+    in_trip: 'En viaje',
+    accepted: 'Aceptado',
+    en_route: 'En ruta',
+    waiting: 'Esperando',
+  };
+  return map[status] ?? status;
+}
+
+function shortRoute(origin: string | null, dest: string | null) {
+  const o = origin?.trim() || '—';
+  const d = dest?.trim() || '—';
+  const clip = (s: string) => (s.length > 28 ? `${s.slice(0, 28)}…` : s);
+  return `${clip(o)} → ${clip(d)}`;
+}
+
+function DriverTripsSection({ driverId }: { driverId: string }) {
+  const [offset, setOffset] = useState(0);
+
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ['admin', 'driver', driverId, 'trips', offset],
+    queryFn: () =>
+      apiFetch<AdminDriverTripsResponse>(
+        `/admin/drivers/${driverId}/trips?limit=${TRIPS_PAGE_SIZE}&offset=${offset}`,
+      ),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Viajes</CardTitle>
+        <CardDescription>
+          Completados y calificados · split Lifty / conductor desde la fila del viaje
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ) : null}
+
+        {isError ? (
+          <div className="rounded-lg border border-destructive/30 bg-red-50 p-4 text-center text-sm text-destructive">
+            <p>{(error as Error)?.message ?? 'No se pudieron cargar los viajes'}</p>
+            <Button className="mt-3" size="sm" variant="outline" onClick={() => void refetch()}>
+              Reintentar
+            </Button>
+          </div>
+        ) : null}
+
+        {data ? (
+          <>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                <p className="text-xs text-muted-foreground">Viajes</p>
+                <p className="font-semibold text-navy">{data.totals_in_filter.trip_count}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                <p className="text-xs text-muted-foreground">Bruto</p>
+                <p className="font-semibold text-navy">
+                  {formatArs(data.totals_in_filter.gross_fare)}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                <p className="text-xs text-muted-foreground">Lifty</p>
+                <p className="font-semibold text-navy">
+                  {formatArs(data.totals_in_filter.platform_fee)}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                <p className="text-xs text-muted-foreground">Conductor</p>
+                <p className="font-semibold text-navy">
+                  {formatArs(data.totals_in_filter.driver_earnings)}
+                </p>
+              </div>
+            </div>
+
+            {!data.items.length ? (
+              <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                Sin viajes completados para este conductor.
+              </p>
+            ) : (
+              <>
+                <div className="hidden overflow-x-auto md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Ruta</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-right">Lifty</TableHead>
+                        <TableHead className="text-right">Conductor</TableHead>
+                        <TableHead>Pago</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.items.map((t) => (
+                        <TableRow key={t.id}>
+                          <TableCell className="whitespace-nowrap text-xs">
+                            {formatDate(t.created_at)}
+                          </TableCell>
+                          <TableCell className="max-w-[220px] text-xs text-muted-foreground">
+                            {shortRoute(t.origin_address, t.dest_address)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{tripStatusLabel(t.status)}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatArs(t.total_fare)}
+                          </TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {formatArs(t.platform_fee)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-navy">
+                            {formatArs(t.driver_earnings)}
+                          </TableCell>
+                          <TableCell className="text-xs capitalize">
+                            {t.payment_method ?? '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <ul className="space-y-3 md:hidden">
+                  {data.items.map((t) => (
+                    <li key={t.id} className="rounded-lg border bg-muted/20 px-3 py-3 text-sm">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs text-muted-foreground">{formatDate(t.created_at)}</p>
+                        <Badge variant="outline">{tripStatusLabel(t.status)}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {shortRoute(t.origin_address, t.dest_address)}
+                      </p>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Total</p>
+                          <p className="font-medium">{formatArs(t.total_fare)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Lifty</p>
+                          <p className="font-medium">{formatArs(t.platform_fee)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground">Conductor</p>
+                          <p className="font-medium text-navy">{formatArs(t.driver_earnings)}</p>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-xs capitalize text-muted-foreground">
+                        Pago: {t.payment_method ?? '—'}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    {offset + 1}–{Math.min(offset + data.items.length, data.total)} de {data.total}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={offset === 0 || isFetching}
+                      onClick={() => setOffset((o) => Math.max(0, o - TRIPS_PAGE_SIZE))}
+                    >
+                      Anterior
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={offset + data.items.length >= data.total || isFetching}
+                      onClick={() => setOffset((o) => o + TRIPS_PAGE_SIZE)}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
