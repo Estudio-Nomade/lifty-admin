@@ -1,5 +1,6 @@
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { CommissionPage } from '@/pages/CommissionPage';
+import { DashboardPage } from '@/pages/DashboardPage';
 import { DriverDetailPage } from '@/pages/DriverDetailPage';
 import { DriversRegistryPage } from '@/pages/DriversRegistryPage';
 import { FuelPricePage } from '@/pages/FuelPricePage';
@@ -15,7 +16,9 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<PendingQueuePage />} />
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<Navigate to="/" replace />} />
+        <Route path="/pending" element={<PendingQueuePage />} />
         <Route path="/drivers" element={<DriversRegistryPage />} />
         <Route path="/drivers/:id" element={<DriverDetailPage />} />
         <Route path="/transit-operators" element={<TransitOperatorsPage />} />

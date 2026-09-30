@@ -33,7 +33,7 @@ export function NavLinks({ pendingCount, onNavigate, variant = 'sidebar' }: NavL
           >
             <Icon className="size-5 shrink-0 md:size-4" />
             <span className="flex-1">{item.label}</span>
-            {item.to === '/' && pendingCount != null && pendingCount > 0 ? (
+            {item.to === '/pending' && pendingCount != null && pendingCount > 0 ? (
               <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
                 {pendingCount}
               </span>

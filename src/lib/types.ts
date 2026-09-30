@@ -226,3 +226,64 @@ export type FuelPriceSetResult = {
   warning?: string;
   message?: string;
 };
+
+export type DashboardRange = 'today' | '7d' | '30d';
+
+export type DashboardSummary = {
+  range: DashboardRange;
+  from: string;
+  to: string;
+  drivers: {
+    online_now: number;
+    approved: number;
+    pending_review: number;
+  };
+  trips: {
+    completed: number;
+    in_progress: number;
+  };
+  money: {
+    currency: 'ARS';
+    gross_fare: number;
+    platform_fee: number;
+    driver_earnings: number;
+    tips: number;
+    avg_ticket: number | null;
+    take_rate: number | null;
+  };
+  commission: {
+    phase: string;
+    currentDay: number;
+    rate: number;
+  };
+};
+
+export type AdminDriverTrip = {
+  id: string;
+  status: string;
+  created_at: string;
+  origin_address: string | null;
+  dest_address: string | null;
+  distance_km: number | null;
+  duration_minutes: number | null;
+  total_fare: number;
+  platform_fee: number;
+  driver_earnings: number;
+  tip_amount: number;
+  payment_method: string | null;
+  is_collected: boolean;
+  passenger_name?: string | null;
+};
+
+export type AdminDriverTripsResponse = {
+  items: AdminDriverTrip[];
+  total: number;
+  limit: number;
+  offset: number;
+  totals_in_filter: {
+    trip_count: number;
+    gross_fare: number;
+    platform_fee: number;
+    driver_earnings: number;
+  };
+};
