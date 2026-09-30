@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   MapPinned,
   Percent,
+  Route,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -19,6 +20,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Inicio', icon: LayoutDashboard },
   { to: '/pending', label: 'Pendientes', icon: ClipboardList },
   { to: '/drivers', label: 'Conductores', icon: Users },
+  { to: '/trips', label: 'Viajes', icon: Route },
   { to: '/transit-operators', label: 'Operadores tránsito', icon: MapPinned },
   { to: '/commission', label: 'Comisiones', icon: Percent },
   { to: '/fuel-price', label: 'Combustible / Tarifas', icon: Fuel },

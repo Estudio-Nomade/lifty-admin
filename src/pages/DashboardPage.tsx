@@ -223,6 +223,12 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <p className="text-sm text-muted-foreground">
+        <Link to="/trips" className="text-navy underline-offset-2 hover:underline">
+          Ver viajes
+        </Link>
+      </p>
     </div>
   );
 }
