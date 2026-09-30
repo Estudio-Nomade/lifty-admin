@@ -48,6 +48,17 @@ function formatDayRange(start: number, end: number | null) {
   return `Días ${start}–${end}`;
 }
 
+/** Ops glossary — rates shown as %; backend stores 0–1. */
+const PHASE_FIELD_HELP = {
+  days: 'Rango de días desde la fecha de inicio (día 1 = ese día). Sin solaparse entre fases.',
+  base: 'Comisión fija al entrar a la fase. Ej. 10 = 10% del viaje.',
+  increment:
+    'Cuánto suma la comisión por cada día dentro de la fase. Vacío = rate fijo (solo Base). Fórmula: Base + (día actual − día inicio) × Incremento.',
+  cap: 'Techo máximo si hay incremento. Vacío = sin tope. Nunca se cobra más que el Cap.',
+  effective:
+    'Rate efectivo = min(Cap, Base + (Día N − día inicio) × Incremento/día). Si no hay incremento, es solo la Base.',
+} as const;
+
 export function CommissionPage() {
   const queryClient = useQueryClient();
   const [startDateDraft, setStartDateDraft] = useState('');
@@ -257,10 +268,44 @@ export function CommissionPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-navy">Comisiones</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          La comisión es global para todos los conductores activos según el día desde la fecha de
+          La comisión es <strong className="font-medium text-foreground">global</strong> para todos
+          los conductores activos: se elige la fase según cuántos días pasaron desde la fecha de
           inicio. No hay % por conductor.
         </p>
       </div>
+
+      <Card className="border-muted bg-muted/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Cómo se calcula cada fase</CardTitle>
+          <CardDescription>
+            En pantalla se muestra en % (10 = 10%). El backend guarda fracción 0–1 (0.10).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <span className="font-medium text-foreground">Días:</span> {PHASE_FIELD_HELP.days}
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Base:</span> {PHASE_FIELD_HELP.base}
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Incremento/día:</span>{' '}
+              {PHASE_FIELD_HELP.increment}
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Cap (techo):</span> {PHASE_FIELD_HELP.cap}
+            </li>
+          </ul>
+          <p className="rounded-md border bg-background px-3 py-2 text-foreground">
+            <span className="font-medium">Rate efectivo:</span> {PHASE_FIELD_HELP.effective}
+          </p>
+          <p>
+            Ejemplo: Base 10%, Incremento 0,1%/día, Cap 15%, día 5 de la fase → 10% + 4×0,1% = 10,4%
+            (si no supera el Cap).
+          </p>
+        </CardContent>
+      </Card>
 
       {partialErrors.length ? (
         <div className="rounded-lg border border-destructive/30 bg-red-50 px-4 py-3 text-sm text-destructive">
@@ -284,7 +329,9 @@ export function CommissionPage() {
             <Percent className="size-4" />
             Fase actual
           </CardTitle>
-          <CardDescription>Según fecha de inicio y días transcurridos</CardDescription>
+          <CardDescription title={PHASE_FIELD_HELP.effective}>
+            Según fecha de inicio y días transcurridos. El % de acá es el que se cobra hoy.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-8">
           <div>
@@ -292,11 +339,15 @@ export function CommissionPage() {
             <p className="text-xl font-semibold text-navy">{current?.phase ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Día N</p>
+            <p className="text-xs text-muted-foreground" title="Día 1 = fecha de inicio (UTC)">
+              Día N
+            </p>
             <p className="text-xl font-semibold text-navy">{current?.currentDay ?? '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Rate efectivo</p>
+            <p className="text-xs text-muted-foreground" title={PHASE_FIELD_HELP.effective}>
+              Rate efectivo
+            </p>
             <p className="text-3xl font-bold text-primary">
               {current ? pctFromFraction(current.rate) : '—'}
             </p>
@@ -346,8 +397,8 @@ export function CommissionPage() {
         <CardHeader>
           <CardTitle className="text-base">Fases</CardTitle>
           <CardDescription>
-            Rangos en días desde la fecha de inicio. Rates en % en pantalla; la API recibe fracción
-            0–1 (ej. 10% → 0.10).
+            Cada fila es un tramo de días. Si Incremento y Cap están en —, la comisión es fija (=
+            Base) todo el tramo. Hover en el encabezado de cada columna para el detalle.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -359,10 +410,10 @@ export function CommissionPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
-                    <TableHead>Días</TableHead>
-                    <TableHead>Base</TableHead>
-                    <TableHead>Incremento/día</TableHead>
-                    <TableHead>Cap</TableHead>
+                    <TableHead title={PHASE_FIELD_HELP.days}>Días</TableHead>
+                    <TableHead title={PHASE_FIELD_HELP.base}>Base</TableHead>
+                    <TableHead title={PHASE_FIELD_HELP.increment}>Incremento/día</TableHead>
+                    <TableHead title={PHASE_FIELD_HELP.cap}>Cap</TableHead>
                     <TableHead className="w-20" />
                   </TableRow>
                 </TableHeader>
@@ -426,12 +477,12 @@ export function CommissionPage() {
       </Dialog>
 
       <Dialog open={editPhase != null} onOpenChange={(o) => !o && setEditPhase(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar fase</DialogTitle>
             <DialogDescription>
-              Ingresá rates en % (ej. 10 = 10%). Se envían a la API como fracción 0–1. Día fin vacío
-              = abierto (∞).
+              Ingresá rates en % (ej. 10 = 10%). Día fin vacío = abierto (∞). Incremento y Cap vacíos
+              = comisión fija en la Base.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
@@ -453,6 +504,7 @@ export function CommissionPage() {
                   value={editForm.day_start}
                   onChange={(e) => setEditForm((f) => ({ ...f, day_start: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">Primer día de esta fase (≥ 1).</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="ph-de">Día fin (vacío = ∞)</Label>
@@ -463,6 +515,7 @@ export function CommissionPage() {
                   value={editForm.day_end}
                   onChange={(e) => setEditForm((f) => ({ ...f, day_end: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">Último día inclusive; vacío = sin fin.</p>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -474,6 +527,7 @@ export function CommissionPage() {
                   value={editForm.base_rate_pct}
                   onChange={(e) => setEditForm((f) => ({ ...f, base_rate_pct: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">{PHASE_FIELD_HELP.base}</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="ph-inc">Incr. %/día</Label>
@@ -485,17 +539,26 @@ export function CommissionPage() {
                     setEditForm((f) => ({ ...f, daily_increment_pct: e.target.value }))
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Suma por día desde el día inicio. Vacío = fijo.
+                </p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ph-cap">Cap %</Label>
+                <Label htmlFor="ph-cap">Cap % (techo)</Label>
                 <Input
                   id="ph-cap"
                   inputMode="decimal"
                   value={editForm.cap_rate_pct}
                   onChange={(e) => setEditForm((f) => ({ ...f, cap_rate_pct: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Máximo si hay incremento. Vacío = sin tope.
+                </p>
               </div>
             </div>
+            <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              {PHASE_FIELD_HELP.effective}
+            </p>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setEditPhase(null)}>
