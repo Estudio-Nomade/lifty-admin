@@ -30,6 +30,7 @@ import {
   type DriverDetail,
   type DriverDocument,
   type ReviewResult,
+  tripStatusLabel,
 } from '@/lib/types';
 import { formatArs } from '@/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -652,19 +653,6 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 }
 
 const TRIPS_PAGE_SIZE = 20;
-
-function tripStatusLabel(status: string) {
-  const map: Record<string, string> = {
-    completed: 'Completado',
-    rated: 'Calificado',
-    cancelled: 'Cancelado',
-    in_trip: 'En viaje',
-    accepted: 'Aceptado',
-    en_route: 'En ruta',
-    waiting: 'Esperando',
-  };
-  return map[status] ?? status;
-}
 
 function shortRoute(origin: string | null, dest: string | null) {
   const o = origin?.trim() || '—';

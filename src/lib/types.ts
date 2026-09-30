@@ -287,3 +287,61 @@ export type AdminDriverTripsResponse = {
     driver_earnings: number;
   };
 };
+
+export type AdminGlobalTrip = {
+  id: string;
+  status: string;
+  created_at: string;
+  origin_address: string | null;
+  dest_address: string | null;
+  distance_km: number | null;
+  duration_minutes: number | null;
+  total_fare: number;
+  platform_fee: number;
+  driver_earnings: number;
+  tip_amount: number;
+  payment_method: string | null;
+  is_collected: boolean;
+  driver_id: string | null;
+  driver_name: string | null;
+  driver_document_number: string | null;
+  district_id: string | null;
+  district_name: string | null;
+  passenger_id: string | null;
+  passenger_name: string | null;
+};
+
+export type AdminTripsListResponse = {
+  items: AdminGlobalTrip[];
+  total: number;
+  limit: number;
+  offset: number;
+  totals_in_filter: {
+    trip_count: number;
+    gross_fare: number;
+    platform_fee: number;
+    driver_earnings: number;
+  };
+};
+
+export type AdminTripDetail = AdminGlobalTrip & {
+  base_fare: number | null;
+  distance_fare: number | null;
+  time_fare: number | null;
+  assigned_at: string | null;
+  updated_at: string | null;
+};
+
+export function tripStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    completed: 'Completado',
+    rated: 'Calificado',
+    cancelled: 'Cancelado',
+    cancelled_early: 'Cancelado temprano',
+    in_trip: 'En viaje',
+    accepted: 'Aceptado',
+    en_route: 'En ruta',
+    waiting: 'Esperando',
+  };
+  return map[status] ?? status;
+}
