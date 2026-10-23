@@ -1,5 +1,6 @@
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { CommissionPage } from '@/pages/CommissionPage';
+import { CommissionReceiptsPage } from '@/pages/CommissionReceiptsPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { DriverDetailPage } from '@/pages/DriverDetailPage';
 import { DriversRegistryPage } from '@/pages/DriversRegistryPage';
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/trips/:id" element={<TripDetailPage />} />
         <Route path="/transit-operators" element={<TransitOperatorsPage />} />
         <Route path="/commission" element={<CommissionPage />} />
+        <Route path="/commission/receipts" element={<CommissionReceiptsPage />} />
         <Route path="/fuel-price" element={<FuelPricePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

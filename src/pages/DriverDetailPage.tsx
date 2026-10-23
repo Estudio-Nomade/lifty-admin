@@ -25,14 +25,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { ApiError, apiFetch } from '@/lib/api';
 import {
   DOC_TYPES,
+  commissionReceiptStatusLabel,
   docLabel,
   type AdminDriverTripsResponse,
+  type CommissionReceiptsResponse,
   type DriverDetail,
   type DriverDocument,
   type ReviewResult,
   tripStatusLabel,
 } from '@/lib/types';
-import { formatArs } from '@/lib/utils';
+import { cn, formatArs } from '@/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, Circle, ExternalLink, FileText, XCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -117,11 +119,25 @@ export function DriverDetailPage() {
   );
   const [previewDoc, setPreviewDoc] = useState<DriverDocument | null>(null);
   const [showSuperseded, setShowSuperseded] = useState(false);
+  const [confirmClearFraud, setConfirmClearFraud] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin', 'driver', id],
     enabled: !!id,
     queryFn: () => apiFetch<DriverDetail>(`/admin/drivers/${id}`),
+  });
+
+  const clearFraudMutation = useMutation({
+    mutationFn: () =>
+      apiFetch(`/admin/drivers/${id}/clear-commission-fraud`, { method: 'POST' }),
+    onSuccess: () => {
+      toast.success('Bloqueo de fraude de comisión quitado');
+      setConfirmClearFraud(false);
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'driver', id] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo quitar el bloqueo');
+    },
   });
 
   const reviewMutation = useMutation({
@@ -249,27 +265,49 @@ export function DriverDetailPage() {
               status={data.identification_status}
               phase={data.identification_phase}
             />
+            {(data.platform_debt ?? 0) > 0 ? (
+              <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900">
+                Deuda comisión {formatArs(data.platform_debt)}
+              </Badge>
+            ) : null}
+            {data.commission_fraud_block ? (
+              <Badge variant="outline" className="border-red-300 bg-red-50 text-red-900">
+                Bloqueo fraude comisión
+              </Badge>
+            ) : null}
           </div>
         </div>
-        {canReview ? (
-          <div className="hidden w-full flex-wrap gap-2 sm:flex sm:w-auto">
+        <div className="hidden w-full flex-wrap gap-2 sm:flex sm:w-auto">
+          {data.commission_fraud_block ? (
             <Button
-              variant="destructive"
+              variant="outline"
               className="min-h-11 flex-1 sm:flex-none"
-              onClick={() => setConfirmAction('reject')}
-              disabled={reviewMutation.isPending}
+              onClick={() => setConfirmClearFraud(true)}
+              disabled={clearFraudMutation.isPending}
             >
-              Rechazar
+              Quitar bloqueo fraude
             </Button>
-            <Button
-              className="min-h-11 flex-1 sm:flex-none"
-              onClick={() => setConfirmAction('approve')}
-              disabled={reviewMutation.isPending}
-            >
-              Aprobar
-            </Button>
-          </div>
-        ) : null}
+          ) : null}
+          {canReview ? (
+            <>
+              <Button
+                variant="destructive"
+                className="min-h-11 flex-1 sm:flex-none"
+                onClick={() => setConfirmAction('reject')}
+                disabled={reviewMutation.isPending}
+              >
+                Rechazar
+              </Button>
+              <Button
+                className="min-h-11 flex-1 sm:flex-none"
+                onClick={() => setConfirmAction('approve')}
+                disabled={reviewMutation.isPending}
+              >
+                Aprobar
+              </Button>
+            </>
+          ) : null}
+        </div>
       </div>
 
       {canReview ? (
@@ -490,6 +528,8 @@ export function DriverDetailPage() {
 
       <DriverTripsSection driverId={data.id} />
 
+      <DriverCommissionReceiptsSection driverId={data.id} />
+
       {canReview ? (
         <Card>
           <CardHeader>
@@ -527,6 +567,29 @@ export function DriverDetailPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <Dialog open={confirmClearFraud} onOpenChange={(o) => !o && setConfirmClearFraud(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Quitar bloqueo por fraude de comisión?</DialogTitle>
+            <DialogDescription>
+              El conductor podrá volver a conectarse si no tiene deuda por encima del tope. La deuda
+              actual no se modifica ({formatArs(data.platform_debt ?? 0)}).
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setConfirmClearFraud(false)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={clearFraudMutation.isPending}
+              onClick={() => clearFraudMutation.mutate()}
+            >
+              {clearFraudMutation.isPending ? 'Quitando…' : 'Quitar bloqueo'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmAction != null} onOpenChange={(o) => !o && setConfirmAction(null)}>
         <DialogContent>
@@ -659,6 +722,106 @@ function shortRoute(origin: string | null, dest: string | null) {
   const d = dest?.trim() || '—';
   const clip = (s: string) => (s.length > 28 ? `${s.slice(0, 28)}…` : s);
   return `${clip(o)} → ${clip(d)}`;
+}
+
+function DriverCommissionReceiptsSection({ driverId }: { driverId: string }) {
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['admin', 'commission', 'receipts', 'driver', driverId],
+    queryFn: () =>
+      apiFetch<CommissionReceiptsResponse>(
+        `/admin/commission/receipts?driver_id=${driverId}&status=all&limit=20&offset=0`,
+      ),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Comprobantes de comisión</CardTitle>
+        <CardDescription>Últimos comprobantes de este conductor</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : null}
+        {isError ? (
+          <div className="rounded-lg border border-destructive/30 bg-red-50 p-4 text-center text-sm text-destructive">
+            <p>{(error as Error)?.message ?? 'No se pudieron cargar los comprobantes'}</p>
+            <Button className="mt-3" size="sm" variant="outline" onClick={() => void refetch()}>
+              Reintentar
+            </Button>
+          </div>
+        ) : null}
+        {data && !data.items.length ? (
+          <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+            Sin comprobantes de comisión.
+          </p>
+        ) : null}
+        {data && data.items.length ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead className="text-right">Monto</TableHead>
+                  <TableHead className="text-right">Deuda previa</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Archivo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.items.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {formatDate(r.created_at)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatArs(r.amount_ars)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {formatArs(r.debt_before_ars)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          r.status === 'pending_review' &&
+                            'border-sky-300 bg-sky-50 text-sky-900',
+                          r.status === 'approved' &&
+                            'border-emerald-300 bg-emerald-50 text-emerald-900',
+                          r.status === 'rejected_fraud' &&
+                            'border-red-300 bg-red-50 text-red-900',
+                        )}
+                      >
+                        {commissionReceiptStatusLabel(r.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <a
+                        href={r.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      >
+                        Ver <ExternalLink className="size-3" />
+                      </a>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
+        <div className="mt-3">
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/commission/receipts">Ir a cola de comprobantes</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function DriverTripsSection({ driverId }: { driverId: string }) {

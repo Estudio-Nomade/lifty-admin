@@ -25,10 +25,13 @@ import type {
   CommissionCurrent,
   CommissionPhase,
   CommissionStartDate,
+  LiftyPayoutAccount,
 } from '@/lib/types';
+import { formatArs } from '@/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Percent, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 function pctFromFraction(rate: number | null | undefined) {
@@ -72,6 +75,12 @@ export function CommissionPage() {
     daily_increment_pct: '',
     cap_rate_pct: '',
   });
+  const [payoutForm, setPayoutForm] = useState({
+    alias: '',
+    cvu: '',
+    holder: '',
+    bank: '',
+  });
 
   const currentQ = useQuery({
     queryKey: ['admin', 'commission', 'current'],
@@ -88,15 +97,46 @@ export function CommissionPage() {
     queryFn: () => apiFetch<CommissionStartDate>('/admin/commission/start-date'),
   });
 
+  const payoutQ = useQuery({
+    queryKey: ['admin', 'commission', 'payout-account'],
+    queryFn: () => apiFetch<LiftyPayoutAccount>('/admin/commission/payout-account'),
+  });
+
   useEffect(() => {
     if (startDateQ.data?.start_date) {
       setStartDateDraft(startDateQ.data.start_date);
     }
   }, [startDateQ.data?.start_date]);
 
+  useEffect(() => {
+    if (!payoutQ.data) return;
+    setPayoutForm({
+      alias: payoutQ.data.alias ?? '',
+      cvu: payoutQ.data.cvu ?? '',
+      holder: payoutQ.data.holder ?? '',
+      bank: payoutQ.data.bank ?? '',
+    });
+  }, [payoutQ.data]);
+
   const invalidateAll = () => {
     void queryClient.invalidateQueries({ queryKey: ['admin', 'commission'] });
   };
+
+  const payoutMutation = useMutation({
+    mutationFn: (body: { alias: string; cvu: string; holder: string; bank: string }) =>
+      apiFetch<LiftyPayoutAccount>('/admin/commission/payout-account', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    onSuccess: (data) => {
+      toast.success('Cuenta de cobro actualizada');
+      queryClient.setQueryData(['admin', 'commission', 'payout-account'], data);
+      invalidateAll();
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo guardar la cuenta');
+    },
+  });
 
   const startDateMutation = useMutation({
     mutationFn: (value: string) =>
@@ -212,8 +252,10 @@ export function CommissionPage() {
     (!sameStartDateAsLoaded || startDateNeedsPersist) &&
     !startDateMutation.isPending;
 
-  const loading = currentQ.isLoading || phasesQ.isLoading || startDateQ.isLoading;
-  const allFailed = currentQ.isError && phasesQ.isError && startDateQ.isError;
+  const loading =
+    currentQ.isLoading || phasesQ.isLoading || startDateQ.isLoading || payoutQ.isLoading;
+  const allFailed =
+    currentQ.isError && phasesQ.isError && startDateQ.isError && payoutQ.isError;
 
   if (loading) {
     return (
@@ -272,7 +314,85 @@ export function CommissionPage() {
           los conductores activos: se elige la fase según cuántos días pasaron desde la fecha de
           inicio. No hay % por conductor.
         </p>
+        <div className="mt-3">
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/commission/receipts">Ver comprobantes de comisión</Link>
+          </Button>
+        </div>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Cuenta cobro Lifty</CardTitle>
+          <CardDescription>
+            Alias/CVU que ven los conductores al saldar deuda de comisión.
+            {payoutQ.data?.debt_cap_ars != null
+              ? ` Tope de deuda online: ${formatArs(payoutQ.data.debt_cap_ars)}.`
+              : null}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {payoutQ.isError ? (
+            <p className="text-sm text-destructive">
+              {payoutQ.error instanceof ApiError
+                ? payoutQ.error.message
+                : 'No se pudo cargar la cuenta de cobro'}
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="payout-alias">Alias</Label>
+                <Input
+                  id="payout-alias"
+                  value={payoutForm.alias}
+                  onChange={(e) => setPayoutForm((f) => ({ ...f, alias: e.target.value }))}
+                  placeholder="lifty.cobros"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="payout-cvu">CVU</Label>
+                <Input
+                  id="payout-cvu"
+                  value={payoutForm.cvu}
+                  onChange={(e) => setPayoutForm((f) => ({ ...f, cvu: e.target.value }))}
+                  placeholder="0000003100010000000001"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="payout-holder">Titular</Label>
+                <Input
+                  id="payout-holder"
+                  value={payoutForm.holder}
+                  onChange={(e) => setPayoutForm((f) => ({ ...f, holder: e.target.value }))}
+                  placeholder="Lifty Viajes SA"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="payout-bank">Banco</Label>
+                <Input
+                  id="payout-bank"
+                  value={payoutForm.bank}
+                  onChange={(e) => setPayoutForm((f) => ({ ...f, bank: e.target.value }))}
+                  placeholder="Banco Galicia"
+                />
+              </div>
+            </div>
+          )}
+          <Button
+            disabled={payoutMutation.isPending || payoutQ.isError}
+            onClick={() =>
+              payoutMutation.mutate({
+                alias: payoutForm.alias,
+                cvu: payoutForm.cvu,
+                holder: payoutForm.holder,
+                bank: payoutForm.bank,
+              })
+            }
+          >
+            {payoutMutation.isPending ? 'Guardando…' : 'Guardar cuenta'}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="border-muted bg-muted/30">
         <CardHeader className="pb-2">
