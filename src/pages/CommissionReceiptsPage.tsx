@@ -377,10 +377,11 @@ export function CommissionReceiptsPage() {
           <DialogHeader>
             <DialogTitle>¿Marcar como fraude?</DialogTitle>
             <DialogDescription>
-              Se restaura la deuda a{' '}
-              <strong>{fraudTarget ? formatArs(fraudTarget.debt_before_ars) : '—'}</strong>, se
-              bloquea online por fraude y el comprobante queda rechazado. El conductor no podrá
-              conectarse hasta que apruebes un comprobante o quites el bloqueo.
+              Se suma la deuda previa del comprobante (
+              <strong>{fraudTarget ? formatArs(fraudTarget.debt_before_ars) : '—'}</strong>) al saldo
+              actual del conductor, se bloquea online por fraude y el comprobante queda rechazado. El
+              conductor no podrá conectarse hasta que apruebes un comprobante nuevo o quites el
+              bloqueo.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">

@@ -310,23 +310,37 @@ export function DriverDetailPage() {
         </div>
       </div>
 
-      {canReview ? (
+      {canReview || data.commission_fraud_block ? (
         <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t bg-card/95 p-3 backdrop-blur supports-backdrop-filter:bg-card/80 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
-          <Button
-            variant="destructive"
-            className="min-h-12 flex-1"
-            onClick={() => setConfirmAction('reject')}
-            disabled={reviewMutation.isPending}
-          >
-            Rechazar
-          </Button>
-          <Button
-            className="min-h-12 flex-1"
-            onClick={() => setConfirmAction('approve')}
-            disabled={reviewMutation.isPending}
-          >
-            Aprobar
-          </Button>
+          {data.commission_fraud_block ? (
+            <Button
+              variant="outline"
+              className="min-h-12 flex-1"
+              onClick={() => setConfirmClearFraud(true)}
+              disabled={clearFraudMutation.isPending}
+            >
+              Quitar fraude
+            </Button>
+          ) : null}
+          {canReview ? (
+            <>
+              <Button
+                variant="destructive"
+                className="min-h-12 flex-1"
+                onClick={() => setConfirmAction('reject')}
+                disabled={reviewMutation.isPending}
+              >
+                Rechazar
+              </Button>
+              <Button
+                className="min-h-12 flex-1"
+                onClick={() => setConfirmAction('approve')}
+                disabled={reviewMutation.isPending}
+              >
+                Aprobar
+              </Button>
+            </>
+          ) : null}
         </div>
       ) : null}
 

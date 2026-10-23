@@ -252,10 +252,9 @@ export function CommissionPage() {
     (!sameStartDateAsLoaded || startDateNeedsPersist) &&
     !startDateMutation.isPending;
 
-  const loading =
-    currentQ.isLoading || phasesQ.isLoading || startDateQ.isLoading || payoutQ.isLoading;
-  const allFailed =
-    currentQ.isError && phasesQ.isError && startDateQ.isError && payoutQ.isError;
+  // Payout is independent — don't block phases UI on payout load/error alone.
+  const loading = currentQ.isLoading || phasesQ.isLoading || startDateQ.isLoading;
+  const allFailed = currentQ.isError && phasesQ.isError && startDateQ.isError;
 
   if (loading) {
     return (
