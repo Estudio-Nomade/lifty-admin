@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   MapPinned,
   Percent,
+  Receipt,
   Route,
   Users,
   type LucideIcon,
@@ -23,5 +24,6 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/trips', label: 'Viajes', icon: Route },
   { to: '/transit-operators', label: 'Operadores tránsito', icon: MapPinned },
   { to: '/commission', label: 'Comisiones', icon: Percent },
+  { to: '/commission/receipts', label: 'Comprobantes comisión', icon: Receipt },
   { to: '/fuel-price', label: 'Combustible / Tarifas', icon: Fuel },
 ];

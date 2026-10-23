@@ -131,6 +131,8 @@ export type DriverDetail = {
   identification_days_since_approval?: number | null;
   approved_at?: string | null;
   is_online?: boolean | null;
+  platform_debt?: number;
+  commission_fraud_block?: boolean;
   district_id: string | null;
   district_name?: string | null;
   district_province?: string | null;
@@ -200,6 +202,49 @@ export type CommissionStartDate = {
   /** false when row missing in platform_config (API returns default) */
   configured?: boolean;
 };
+
+export type LiftyPayoutAccount = {
+  alias: string | null;
+  cvu: string | null;
+  holder: string | null;
+  bank: string | null;
+  debt_cap_ars?: number;
+};
+
+export type CommissionReceiptStatus = 'pending_review' | 'approved' | 'rejected_fraud';
+
+export type CommissionReceiptListItem = {
+  id: string;
+  driver_id: string;
+  driver_name: string | null;
+  driver_email: string | null;
+  driver_phone?: string | null;
+  amount_ars: number;
+  debt_before_ars: number;
+  status: CommissionReceiptStatus;
+  file_url: string;
+  created_at: string;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  note?: string | null;
+  signed_url?: string | null;
+};
+
+export type CommissionReceiptsResponse = {
+  items: CommissionReceiptListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export function commissionReceiptStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    pending_review: 'Pendiente',
+    approved: 'Aprobado',
+    rejected_fraud: 'Fraude',
+  };
+  return map[status] ?? status;
+}
 
 export type FuelPriceStatus = {
   currentPrice: number;
