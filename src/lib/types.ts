@@ -101,6 +101,10 @@ export type DriverVehicle = {
   color: string | null;
   plate: string | null;
   vehicle_type?: string | null;
+  /** Declared moto displacement (cc). Null for auto / missing. */
+  engine_cc?: number | null;
+  /** Moto insurance coverage: third_party | comprehensive. Null for auto. */
+  insurance_coverage_type?: string | null;
   created_at?: string | null;
 };
 
