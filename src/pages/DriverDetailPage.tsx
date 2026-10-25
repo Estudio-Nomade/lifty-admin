@@ -65,10 +65,33 @@ function vehicleTypeLabel(type: string | null | undefined) {
   if (!type) return null;
   const map: Record<string, string> = {
     car: 'Auto',
+    auto: 'Auto',
     moto: 'Moto',
     motorcycle: 'Moto',
   };
-  return map[type] ?? type;
+  return map[type.toLowerCase()] ?? type;
+}
+
+function isMotoVehicle(type: string | null | undefined) {
+  if (!type) return false;
+  const t = type.toLowerCase();
+  return t === 'moto' || t === 'motorcycle';
+}
+
+/** Primary declared cc for ops (first moto with value, else first moto row). */
+function primaryMotoEngineCc(
+  vehicles: { vehicle_type?: string | null; engine_cc?: number | null }[],
+): { isMoto: boolean; engineCc: number | null } {
+  const motos = vehicles.filter((v) => isMotoVehicle(v.vehicle_type));
+  if (!motos.length) return { isMoto: false, engineCc: null };
+  const withCc = motos.find((v) => v.engine_cc != null && Number(v.engine_cc) > 0);
+  const raw = withCc?.engine_cc ?? motos[0]?.engine_cc ?? null;
+  const n = raw == null ? null : Number(raw);
+  return { isMoto: true, engineCc: n != null && Number.isFinite(n) ? n : null };
+}
+
+function isRegistrationDoc(docType: string) {
+  return docType === 'registration_front' || docType === 'registration_back';
 }
 
 function DocPreview({
@@ -219,6 +242,7 @@ export function DriverDetailPage() {
   const presentRequired = DOC_TYPES.filter((t) => presentTypes.has(t));
   const docsPendingReview = data.documents_pending_review === true;
   const waitingOnDriver = data.status === 'rejected' && missingTypes.length > 0;
+  const motoCc = primaryMotoEngineCc(data.vehicles);
 
   const districtDisplay = data.district_name
     ? data.district_province
@@ -426,23 +450,65 @@ export function DriverDetailPage() {
             <p className="text-sm text-muted-foreground">Sin vehículo</p>
           ) : (
             <ul className="space-y-3">
-              {data.vehicles.map((v) => (
-                <li
-                  key={v.id}
-                  className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-navy"
-                >
-                  <div className="font-medium">
-                    {[v.brand, v.model, v.year].filter(Boolean).join(' ') || 'Vehículo'}
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                    {v.plate ? <span>Patente: {v.plate}</span> : null}
-                    {v.color ? <span>Color: {v.color}</span> : null}
-                    {v.vehicle_type ? (
-                      <span>Tipo: {vehicleTypeLabel(v.vehicle_type)}</span>
+              {data.vehicles.map((v) => {
+                const moto = isMotoVehicle(v.vehicle_type);
+                const typeLabel = vehicleTypeLabel(v.vehicle_type);
+                const ccRaw = v.engine_cc == null ? null : Number(v.engine_cc);
+                const hasCc = ccRaw != null && Number.isFinite(ccRaw) && ccRaw > 0;
+                return (
+                  <li
+                    key={v.id}
+                    className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-navy"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-medium">
+                        {[v.brand, v.model, v.year].filter(Boolean).join(' ') || 'Vehículo'}
+                      </div>
+                      {typeLabel ? (
+                        <Badge
+                          variant={moto ? 'default' : 'secondary'}
+                          className="text-[10px] uppercase tracking-wide"
+                        >
+                          {typeLabel}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                      {v.plate ? <span>Patente: {v.plate}</span> : null}
+                      {v.color ? <span>Color: {v.color}</span> : null}
+                    </div>
+                    {moto ? (
+                      <div className="mt-3 rounded-md border border-dashed bg-background/80 px-3 py-2">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Cilindrada declarada
+                        </p>
+                        {hasCc ? (
+                          <>
+                            <p className="text-2xl font-semibold tabular-nums text-navy">
+                              {ccRaw} <span className="text-base font-medium">cc</span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Declarado en onboarding · mín. 150 · verificar en cédula
+                            </p>
+                          </>
+                        ) : (
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className="border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-200"
+                            >
+                              Sin cc
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              Moto sin cilindrada en perfil — pedir dato o chequear cédula
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     ) : null}
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>
@@ -520,6 +586,13 @@ export function DriverDetailPage() {
                         status={doc.status === 'pending_review' ? 'pending' : doc.status}
                       />
                     </div>
+                    {motoCc.isMoto && isRegistrationDoc(doc.doc_type) ? (
+                      <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-900 dark:text-amber-100">
+                        {motoCc.engineCc != null
+                          ? `Cédula → verificar ≥ ${motoCc.engineCc} cc`
+                          : 'Cédula → moto sin cc declarado en perfil'}
+                      </p>
+                    ) : null}
                     <p className="text-xs text-muted-foreground">
                       Subido: {formatDate(doc.created_at)}
                     </p>
@@ -662,6 +735,13 @@ export function DriverDetailPage() {
           </DialogHeader>
           {previewDoc ? (
             <div className="space-y-3">
+              {motoCc.isMoto && isRegistrationDoc(previewDoc.doc_type) ? (
+                <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-900 dark:text-amber-100">
+                  {motoCc.engineCc != null
+                    ? `Cédula → verificar ≥ ${motoCc.engineCc} cc en el documento`
+                    : 'Cédula → moto sin cc declarado en perfil'}
+                </p>
+              ) : null}
               <div className="flex max-h-[70vh] max-w-full items-center justify-center overflow-auto rounded-lg bg-muted">
                 <DocLightboxBody url={previewDoc.file_url} alt={docLabel(previewDoc.doc_type)} />
               </div>
