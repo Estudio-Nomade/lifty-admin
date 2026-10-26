@@ -174,7 +174,7 @@ export const DOC_LABELS: Record<string, string> = {
   registration_back: 'Cédula / título (dorso)',
   insurance_front: 'Seguro del vehículo',
   insurance_back: 'Seguro (dorso)',
-  platform_rc_insurance_front: 'Seguro de Responsabilidad Civil',
+  platform_rc_insurance_front: 'Seguro para transporte de pasajeros',
   background_check_front: 'Antecedentes',
   rndg_front: 'RNDG',
 };
