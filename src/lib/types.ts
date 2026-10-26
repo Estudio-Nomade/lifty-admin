@@ -144,6 +144,22 @@ export type DriverDetail = {
   total_trips?: number | null;
   vehicles: DriverVehicle[];
   documents: DriverDocument[];
+  account_messages?: DriverAccountMessage[];
+};
+
+export type DriverAccountMessage = {
+  id: string;
+  type: string;
+  body: string;
+  created_at: string;
+  email_status: string | null;
+  push_status: string | null;
+  read_at: string | null;
+  author: {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+  } | null;
 };
 
 export type ReviewResult = {
@@ -151,6 +167,14 @@ export type ReviewResult = {
   action: 'approve' | 'reject' | 'request_changes';
   status: string;
   message: string;
+  account_message?: {
+    id: string;
+    type: string;
+    body: string;
+    created_at: string;
+    email_status: string | null;
+    push_status: string | null;
+  } | null;
 };
 
 /** Canonical DOC_TYPES — must match backend shared/lib/documents.ts (required set). */

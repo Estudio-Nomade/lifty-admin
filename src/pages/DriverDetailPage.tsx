@@ -29,6 +29,7 @@ import {
   docLabel,
   type AdminDriverTripsResponse,
   type CommissionReceiptsResponse,
+  type DriverAccountMessage,
   type DriverDetail,
   type DriverDocument,
   type ReviewResult,
@@ -40,6 +41,94 @@ import { ArrowLeft, CheckCircle2, Circle, ExternalLink, FileText, XCircle } from
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+
+function formatArDateTime(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+function DeliveryChip({
+  label,
+  status,
+}: {
+  label: string;
+  status: string | null | undefined;
+}) {
+  if (!status) return null;
+  const tone =
+    status === 'sent'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+      : status === 'zero_tokens' || status === 'skipped'
+        ? 'border-amber-200 bg-amber-50 text-amber-900'
+        : 'border-red-200 bg-red-50 text-red-800';
+  const text =
+    status === 'sent'
+      ? 'sent'
+      : status === 'zero_tokens'
+        ? '0 tokens'
+        : status === 'skipped'
+          ? 'skipped'
+          : status === 'failed'
+            ? 'failed'
+            : status;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium',
+        tone,
+      )}
+    >
+      {label}: {text}
+    </span>
+  );
+}
+
+function AccountMessagesTimeline({ messages }: { messages: DriverAccountMessage[] }) {
+  if (messages.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">Todavía no se envió ningún mensaje.</p>
+    );
+  }
+  return (
+    <ul className="space-y-3">
+      {messages.map((msg) => (
+        <li key={msg.id} className="rounded-lg border bg-muted/30 p-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span>{formatArDateTime(msg.created_at)}</span>
+            <span>·</span>
+            <span>
+              {msg.author?.full_name?.trim() || msg.author?.email || 'Admin'}
+            </span>
+          </div>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{msg.body}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+              saved
+            </span>
+            <DeliveryChip label="push" status={msg.push_status} />
+            <DeliveryChip label="email" status={msg.email_status} />
+          </div>
+          {msg.push_status === 'zero_tokens' ? (
+            <p className="mt-2 text-xs text-amber-800">
+              El conductor tiene que abrir la app con un build que soporte push (no Expo Go en
+              Android).
+            </p>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function looksLikeImage(url: string) {
   return /\.(png|jpe?g|webp|gif|bmp|avif)(\?|$)/i.test(url) || /\/image\//i.test(url);
@@ -181,7 +270,17 @@ export function DriverDetailPage() {
     },
     onSuccess: (result) => {
       if (result.action === 'request_changes') {
-        toast.success('Mensaje enviado al conductor');
+        const push = result.account_message?.push_status;
+        if (push === 'zero_tokens') {
+          toast.success(
+            'Mensaje guardado. Push: 0 tokens (el conductor debe abrir un build con push, no Expo Go).',
+          );
+        } else if (push === 'failed') {
+          toast.success('Mensaje guardado. Push falló — el conductor lo ve en la app.');
+        } else {
+          toast.success('Mensaje enviado al conductor');
+        }
+        setNotes('');
       } else if (result.action === 'approve') {
         toast.success(
           'Conductor aprobado. Puede conectarse; debe retirar logos/stickers en 30 días o se suspende la cuenta.',
@@ -651,9 +750,33 @@ export function DriverDetailPage() {
                 Enviar al conductor
               </Button>
             </div>
+            <Separator />
+            <div className="space-y-2">
+              <div>
+                <p className="text-sm font-medium text-foreground">Mensajes enviados</p>
+                <p className="text-xs text-muted-foreground">
+                  Historial append-only de lo mandado al conductor (mail + push).
+                </p>
+              </div>
+              <AccountMessagesTimeline messages={data.account_messages ?? []} />
+            </div>
           </CardContent>
         </Card>
-      ) : null}
+      ) : (
+        (data.account_messages?.length ?? 0) > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Mensajes enviados</CardTitle>
+              <CardDescription>
+                Historial de notas de revisión ya enviadas a este conductor.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AccountMessagesTimeline messages={data.account_messages ?? []} />
+            </CardContent>
+          </Card>
+        ) : null
+      )}
 
       <Dialog open={confirmClearFraud} onOpenChange={(o) => !o && setConfirmClearFraud(false)}>
         <DialogContent>
