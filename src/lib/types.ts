@@ -91,6 +91,24 @@ export type DriverDocument = {
   status: string;
   superseded_at: string | null;
   created_at: string;
+  /** Ops verified this file (per-doc OK tick). */
+  ops_ok?: boolean;
+  /** Ops fix note for this file (shown to driver). */
+  review_comment?: string | null;
+  ops_reviewed_at?: string | null;
+  ops_reviewed_by?: string | null;
+};
+
+export type DocumentReviewResult = {
+  document: DriverDocument;
+  account_message?: {
+    id: string;
+    type: string;
+    body: string;
+    created_at: string;
+    email_status: string | null;
+    push_status: string | null;
+  } | null;
 };
 
 export type DriverVehicle = {
