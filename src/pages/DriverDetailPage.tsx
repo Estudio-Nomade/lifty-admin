@@ -23,12 +23,14 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiError, apiFetch } from '@/lib/api';
+import { Label } from '@/components/ui/label';
 import {
   DOC_TYPES,
   commissionReceiptStatusLabel,
   docLabel,
   type AdminDriverTripsResponse,
   type CommissionReceiptsResponse,
+  type DocumentReviewResult,
   type DriverAccountMessage,
   type DriverDetail,
   type DriverDocument,
@@ -232,6 +234,9 @@ export function DriverDetailPage() {
   const [previewDoc, setPreviewDoc] = useState<DriverDocument | null>(null);
   const [showSuperseded, setShowSuperseded] = useState(false);
   const [confirmClearFraud, setConfirmClearFraud] = useState(false);
+  /** Draft per-doc fix comments (document id → text). */
+  const [docCommentDrafts, setDocCommentDrafts] = useState<Record<string, string>>({});
+  const [docActionId, setDocActionId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin', 'driver', id],
@@ -249,6 +254,52 @@ export function DriverDetailPage() {
     },
     onError: (err) => {
       toast.error(err instanceof ApiError ? err.message : 'No se pudo quitar el bloqueo');
+    },
+  });
+
+  const docReviewMutation = useMutation({
+    mutationFn: (args: {
+      documentId: string;
+      ops_ok?: boolean;
+      review_comment?: string | null;
+      request_fix?: boolean;
+    }) =>
+      apiFetch<DocumentReviewResult>(`/admin/drivers/${id}/documents/${args.documentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ops_ok: args.ops_ok,
+          review_comment: args.review_comment,
+          request_fix: args.request_fix,
+        }),
+      }),
+    onSuccess: (result, vars) => {
+      setDocActionId(null);
+      if (vars.request_fix) {
+        const push = result.account_message?.push_status;
+        if (push === 'zero_tokens') {
+          toast.success(
+            'Corrección pedida. Push: 0 tokens (build nativo con push, no Expo Go).',
+          );
+        } else if (push === 'failed') {
+          toast.success('Corrección pedida. Push falló — el conductor lo ve en la app.');
+        } else {
+          toast.success('Corrección pedida al conductor (push + inbox)');
+        }
+        setDocCommentDrafts((prev) => {
+          const next = { ...prev };
+          delete next[vars.documentId];
+          return next;
+        });
+      } else if (vars.ops_ok === true) {
+        toast.success('Documento marcado OK');
+      } else {
+        toast.success('Documento actualizado');
+      }
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'driver', id] });
+    },
+    onError: (err) => {
+      setDocActionId(null);
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo actualizar el documento');
     },
   });
 
@@ -336,9 +387,19 @@ export function DriverDetailPage() {
   const presentTypes = new Set(
     activeDocs.filter((d) => d.status !== 'rejected').map((d) => d.doc_type),
   );
+  const opsOkByType = new Map<string, boolean>();
+  for (const d of activeDocs) {
+    if (d.status === 'rejected') continue;
+    const prev = opsOkByType.get(d.doc_type) ?? true;
+    opsOkByType.set(d.doc_type, prev && d.ops_ok === true);
+  }
   const missingTypes =
     data.missing_doc_types ?? DOC_TYPES.filter((t) => !presentTypes.has(t));
   const presentRequired = DOC_TYPES.filter((t) => presentTypes.has(t));
+  const opsOkRequired = DOC_TYPES.filter((t) => presentTypes.has(t) && opsOkByType.get(t) === true);
+  const presentButNotOpsOk = DOC_TYPES.filter(
+    (t) => presentTypes.has(t) && opsOkByType.get(t) !== true,
+  );
   const docsPendingReview = data.documents_pending_review === true;
   const waitingOnDriver = data.status === 'rejected' && missingTypes.length > 0;
   const motoCc = primaryMotoEngineCc(data.vehicles);
@@ -413,6 +474,12 @@ export function DriverDetailPage() {
           ) : null}
           {canReview ? (
             <>
+              {presentButNotOpsOk.length > 0 ? (
+                <p className="w-full text-xs text-amber-800 sm:order-first">
+                  Soft: {presentButNotOpsOk.length} doc(s) presentes sin OK de ops — podés
+                  aprobar igual.
+                </p>
+              ) : null}
               <Button
                 variant="destructive"
                 className="min-h-11 flex-1 sm:flex-none"
@@ -447,6 +514,11 @@ export function DriverDetailPage() {
           ) : null}
           {canReview ? (
             <>
+              {presentButNotOpsOk.length > 0 ? (
+                <p className="w-full basis-full text-[10px] leading-tight text-amber-800">
+                  {presentButNotOpsOk.length} doc(s) sin OK ops — aprobar igual OK
+                </p>
+              ) : null}
               <Button
                 variant="destructive"
                 className="min-h-12 flex-1"
@@ -617,27 +689,52 @@ export function DriverDetailPage() {
         <CardHeader>
           <CardTitle className="text-base">Checklist de documentos</CardTitle>
           <CardDescription>
-            {presentRequired.length}/{DOC_TYPES.length} requeridos presentes
-            {missingTypes.length ? ` · faltan ${missingTypes.length}` : ' · completo'}
+            {presentRequired.length}/{DOC_TYPES.length} presentes · {opsOkRequired.length}/
+            {DOC_TYPES.length} OK ops
+            {missingTypes.length ? ` · faltan ${missingTypes.length}` : ''}
+            {presentButNotOpsOk.length ? ` · ${presentButNotOpsOk.length} sin revisar` : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="grid gap-2 sm:grid-cols-2">
             {DOC_TYPES.map((t) => {
-              const ok = presentTypes.has(t);
+              const present = presentTypes.has(t);
+              const verified = present && opsOkByType.get(t) === true;
               return (
                 <li key={t} className="flex items-center gap-2 text-sm">
-                  {ok ? (
+                  {verified ? (
                     <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                  ) : present ? (
+                    <Circle className="size-4 shrink-0 text-amber-500" />
                   ) : (
                     <XCircle className="size-4 shrink-0 text-destructive" />
                   )}
-                  <span className={ok ? 'text-navy' : 'text-muted-foreground'}>{docLabel(t)}</span>
-                  {!ok ? (
+                  <span
+                    className={
+                      verified ? 'text-navy' : present ? 'text-navy' : 'text-muted-foreground'
+                    }
+                  >
+                    {docLabel(t)}
+                  </span>
+                  {!present ? (
                     <Badge variant="outline" className="ml-auto text-[10px]">
                       Falta
                     </Badge>
-                  ) : null}
+                  ) : !verified ? (
+                    <Badge
+                      variant="outline"
+                      className="ml-auto border-amber-300 bg-amber-50 text-[10px] text-amber-900"
+                    >
+                      Sin revisar
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="ml-auto border-emerald-300 bg-emerald-50 text-[10px] text-emerald-900"
+                    >
+                      OK
+                    </Badge>
+                  )}
                 </li>
               );
             })}
@@ -672,41 +769,119 @@ export function DriverDetailPage() {
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleDocs.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
-                >
-                  <DocPreview doc={doc} onOpen={setPreviewDoc} />
-                  <div className="flex flex-1 flex-col gap-2 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-navy">{docLabel(doc.doc_type)}</p>
-                      <ReviewBadge
-                        status={doc.status === 'pending_review' ? 'pending' : doc.status}
-                      />
-                    </div>
-                    {motoCc.isMoto && isRegistrationDoc(doc.doc_type) ? (
-                      <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-900 dark:text-amber-100">
-                        {motoCc.engineCc != null
-                          ? `Cédula → verificar ≥ ${motoCc.engineCc} cc`
-                          : 'Cédula → moto sin cc declarado en perfil'}
+              {visibleDocs.map((doc) => {
+                const isSuperseded = doc.status === 'superseded';
+                const draft =
+                  docCommentDrafts[doc.id] ??
+                  (doc.review_comment && !doc.ops_ok ? doc.review_comment : '') ??
+                  '';
+                const draftTrim = draft.trim();
+                const busy = docActionId === doc.id && docReviewMutation.isPending;
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
+                  >
+                    <DocPreview doc={doc} onOpen={setPreviewDoc} />
+                    <div className="flex flex-1 flex-col gap-2 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-navy">{docLabel(doc.doc_type)}</p>
+                        <ReviewBadge
+                          status={doc.status === 'pending_review' ? 'pending' : doc.status}
+                        />
+                      </div>
+                      {motoCc.isMoto && isRegistrationDoc(doc.doc_type) ? (
+                        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-900 dark:text-amber-100">
+                          {motoCc.engineCc != null
+                            ? `Cédula → verificar ≥ ${motoCc.engineCc} cc`
+                            : 'Cédula → moto sin cc declarado en perfil'}
+                        </p>
+                      ) : null}
+                      <p className="text-xs text-muted-foreground">
+                        Subido: {formatDate(doc.created_at)}
                       </p>
-                    ) : null}
-                    <p className="text-xs text-muted-foreground">
-                      Subido: {formatDate(doc.created_at)}
-                    </p>
-                    <a
-                      href={doc.file_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Abrir en pestaña <ExternalLink className="size-3" />
-                    </a>
+                      <a
+                        href={doc.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Abrir en pestaña <ExternalLink className="size-3" />
+                      </a>
+
+                      {isSuperseded ? (
+                        <p className="text-xs text-muted-foreground">Supersedido — solo lectura</p>
+                      ) : (
+                        <div className="mt-1 space-y-2 border-t pt-2">
+                          <label className="flex cursor-pointer items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              className="size-4 rounded border-input"
+                              checked={doc.ops_ok === true}
+                              disabled={busy}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setDocActionId(doc.id);
+                                docReviewMutation.mutate({
+                                  documentId: doc.id,
+                                  ops_ok: checked,
+                                });
+                              }}
+                            />
+                            <span className="font-medium text-navy">OK / verificado</span>
+                          </label>
+                          {doc.review_comment && !doc.ops_ok ? (
+                            <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-950 dark:text-amber-50">
+                              Comentario actual: {doc.review_comment}
+                            </p>
+                          ) : null}
+                          <div className="space-y-1">
+                            <Label htmlFor={`doc-c-${doc.id}`} className="text-xs">
+                              Pedir corrección
+                            </Label>
+                            <Textarea
+                              id={`doc-c-${doc.id}`}
+                              value={draft}
+                              rows={2}
+                              maxLength={500}
+                              disabled={busy}
+                              placeholder="Ej: Foto borrosa del frente"
+                              onChange={(e) =>
+                                setDocCommentDrafts((prev) => ({
+                                  ...prev,
+                                  [doc.id]: e.target.value,
+                                }))
+                              }
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              className="w-full"
+                              disabled={busy || draftTrim.length < 5}
+                              onClick={() => {
+                                if (draftTrim.length < 5) {
+                                  toast.error('Comentario mín. 5 caracteres');
+                                  return;
+                                }
+                                setDocActionId(doc.id);
+                                docReviewMutation.mutate({
+                                  documentId: doc.id,
+                                  request_fix: true,
+                                  review_comment: draftTrim,
+                                });
+                              }}
+                            >
+                              {busy ? 'Enviando…' : 'Pedir corrección'}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
