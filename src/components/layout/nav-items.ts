@@ -1,4 +1,5 @@
 import {
+  Building2,
   ClipboardList,
   Fuel,
   LayoutDashboard,
@@ -22,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/pending', label: 'Pendientes', icon: ClipboardList },
   { to: '/drivers', label: 'Conductores', icon: Users },
   { to: '/trips', label: 'Viajes', icon: Route },
+  { to: '/service-markets', label: 'Mercados', icon: Building2 },
   { to: '/transit-operators', label: 'Operadores tránsito', icon: MapPinned },
   { to: '/commission', label: 'Comisiones', icon: Percent },
   { to: '/commission/receipts', label: 'Comprobantes comisión', icon: Receipt },
