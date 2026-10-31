@@ -436,3 +436,59 @@ export function tripStatusLabel(status: string): string {
   };
   return map[status] ?? status;
 }
+
+export type ServiceMarketStatus = 'draft' | 'active' | 'paused';
+
+export type ServiceMarket = {
+  id: string;
+  slug: string;
+  name: string;
+  province: string;
+  status: ServiceMarketStatus;
+  hub_lat: number;
+  hub_lng: number;
+  pickup_radius_km: number;
+  dropoff_radius_km: number;
+  match_radius_km: number;
+  geo_bias_radius_km: number;
+  default_district_id: string | null;
+  timezone: string;
+  aliases: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type ServiceMarketCreateBody = {
+  slug: string;
+  name: string;
+  province: string;
+  hub_lat: number;
+  hub_lng: number;
+  pickup_radius_km?: number;
+  dropoff_radius_km?: number;
+  match_radius_km?: number;
+  geo_bias_radius_km?: number;
+  default_district_id?: string | null;
+  timezone?: string;
+  status?: ServiceMarketStatus;
+  aliases?: string[];
+};
+
+export type ServiceMarketPatchBody = {
+  name?: string;
+  province?: string;
+  hub_lat?: number;
+  hub_lng?: number;
+  pickup_radius_km?: number;
+  dropoff_radius_km?: number;
+  match_radius_km?: number;
+  geo_bias_radius_km?: number;
+  default_district_id?: string | null;
+  timezone?: string;
+  status?: ServiceMarketStatus;
+  aliases?: string[];
+};
+
+export type ServiceMarketsListResponse = {
+  items: ServiceMarket[];
+};

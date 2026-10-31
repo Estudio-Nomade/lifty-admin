@@ -7,6 +7,7 @@ import { DriversRegistryPage } from '@/pages/DriversRegistryPage';
 import { FuelPricePage } from '@/pages/FuelPricePage';
 import { LoginPage } from '@/pages/LoginPage';
 import { PendingQueuePage } from '@/pages/PendingQueuePage';
+import { ServiceMarketsPage } from '@/pages/ServiceMarketsPage';
 import { TransitOperatorsPage } from '@/pages/TransitOperatorsPage';
 import { TripDetailPage } from '@/pages/TripDetailPage';
 import { TripsPage } from '@/pages/TripsPage';
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/drivers/:id" element={<DriverDetailPage />} />
         <Route path="/trips" element={<TripsPage />} />
         <Route path="/trips/:id" element={<TripDetailPage />} />
+        <Route path="/service-markets" element={<ServiceMarketsPage />} />
         <Route path="/transit-operators" element={<TransitOperatorsPage />} />
         <Route path="/commission" element={<CommissionPage />} />
         <Route path="/commission/receipts" element={<CommissionReceiptsPage />} />
