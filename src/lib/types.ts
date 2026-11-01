@@ -75,6 +75,13 @@ export type RegistryDriver = {
   total_trips: number | null;
   plate: string | null;
   vehicle_type: string | null;
+  license_category?: string | null;
+  license_professional_status?: string | null;
+  professional_license_phase?: string | null;
+  professional_license_show_banner?: boolean;
+  professional_license_days_remaining?: number | null;
+  professional_license_due_at?: string | null;
+  professional_license_grace_started_at?: string | null;
 };
 
 export type DriversListResponse = {
