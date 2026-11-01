@@ -1,4 +1,5 @@
 import { IdentificationBadge } from '@/components/IdentificationBadge';
+import { ProfessionalLicenseBadge } from '@/components/ProfessionalLicenseBadge';
 import { ReviewBadge } from '@/components/ReviewBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,14 @@ const ID_OPTIONS = [
   { value: 'revoked', label: 'Revocada' },
 ];
 
+const PROFESSIONAL_LICENSE_OPTIONS = [
+  { value: 'all', label: 'Carnet profesional: todos' },
+  { value: 'pending', label: 'Carnet pendiente (todos)' },
+  { value: 'not_started', label: 'Sin reloj (pendiente)' },
+  { value: 'grace', label: 'En gracia (60d)' },
+  { value: 'overdue', label: 'Carnet vencido' },
+];
+
 function onlineLabel(row: RegistryDriver) {
   if (row.is_online) {
     return (
@@ -90,16 +99,18 @@ export function DriversRegistryPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('all');
   const [identification, setIdentification] = useState('all');
+  const [professionalLicense, setProfessionalLicense] = useState('all');
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     if (q.trim()) params.set('q', q.trim());
     if (status !== 'all') params.set('status', status);
     if (identification !== 'all') params.set('identification_status', identification);
+    if (professionalLicense !== 'all') params.set('professional_license', professionalLicense);
     params.set('limit', '100');
     const s = params.toString();
     return s ? `?${s}` : '';
-  }, [q, status, identification]);
+  }, [q, status, identification, professionalLicense]);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['admin', 'drivers', queryString],
@@ -184,6 +195,18 @@ export function DriversRegistryPage() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={professionalLicense} onValueChange={setProfessionalLicense}>
+              <SelectTrigger className="min-h-11 w-full md:w-[230px]">
+                <SelectValue placeholder="Carnet profesional" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROFESSIONAL_LICENSE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button type="button" className="min-h-11 w-full md:w-auto" onClick={applySearch}>
               Buscar
             </Button>
@@ -241,6 +264,10 @@ export function DriversRegistryPage() {
                             status={row.identification_status}
                             phase={row.identification_phase}
                           />
+                          <ProfessionalLicenseBadge
+                            phase={row.professional_license_phase}
+                            daysRemaining={row.professional_license_days_remaining}
+                          />
                           {onlineLabel(row)}
                         </div>
                       </div>
@@ -261,6 +288,7 @@ export function DriversRegistryPage() {
                       <TableHead>Vehículo</TableHead>
                       <TableHead>Review</TableHead>
                       <TableHead>Logos / stickers</TableHead>
+                      <TableHead>Carnet profesional</TableHead>
                       <TableHead>Online</TableHead>
                       <TableHead>Alta</TableHead>
                       <TableHead className="w-10" />
@@ -316,6 +344,12 @@ export function DriversRegistryPage() {
                           <IdentificationBadge
                             status={row.identification_status}
                             phase={row.identification_phase}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <ProfessionalLicenseBadge
+                            phase={row.professional_license_phase}
+                            daysRemaining={row.professional_license_days_remaining}
                           />
                         </TableCell>
                         <TableCell>{onlineLabel(row)}</TableCell>

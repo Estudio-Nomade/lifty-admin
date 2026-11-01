@@ -75,6 +75,13 @@ export type RegistryDriver = {
   total_trips: number | null;
   plate: string | null;
   vehicle_type: string | null;
+  license_category?: string | null;
+  license_professional_status?: string | null;
+  professional_license_phase?: string | null;
+  professional_license_show_banner?: boolean;
+  professional_license_days_remaining?: number | null;
+  professional_license_due_at?: string | null;
+  professional_license_grace_started_at?: string | null;
 };
 
 export type DriversListResponse = {
@@ -151,6 +158,23 @@ export type DriverDetail = {
   identification_days_until_pause?: number | null;
   identification_pause_at?: string | null;
   identification_days_since_approval?: number | null;
+  license_category?: string | null;
+  license_professional_status?: string | null;
+  professional_license_phase?:
+    | 'not_applicable'
+    | 'not_started'
+    | 'grace'
+    | 'overdue'
+    | 'satisfied'
+    | string
+    | null;
+  professional_license_show_banner?: boolean;
+  professional_license_blocks_online?: boolean;
+  professional_license_grace_days?: number;
+  professional_license_grace_started_at?: string | null;
+  professional_license_due_at?: string | null;
+  professional_license_days_remaining?: number | null;
+  professional_license_days_elapsed?: number | null;
   approved_at?: string | null;
   is_online?: boolean | null;
   platform_debt?: number;
