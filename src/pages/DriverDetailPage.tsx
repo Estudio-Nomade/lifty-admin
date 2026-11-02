@@ -1,4 +1,5 @@
 import { IdentificationBadge } from '@/components/IdentificationBadge';
+import { ProfessionalLicenseBadge } from '@/components/ProfessionalLicenseBadge';
 import { ReviewBadge } from '@/components/ReviewBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -449,6 +450,10 @@ export function DriverDetailPage() {
               status={data.identification_status}
               phase={data.identification_phase}
             />
+            <ProfessionalLicenseBadge
+              phase={data.professional_license_phase}
+              daysRemaining={data.professional_license_days_remaining}
+            />
             {(data.platform_debt ?? 0) > 0 ? (
               <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900">
                 Deuda comisión {formatArs(data.platform_debt)}
@@ -610,6 +615,44 @@ export function DriverDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {data.professional_license_phase &&
+      data.professional_license_phase !== 'not_applicable' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Carnet profesional</CardTitle>
+            <CardDescription>
+              Gracia 60 días desde primera conexión (independiente de stickers)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <Row label="Categoría licencia" value={data.license_category} />
+            <Row label="Estado profesional" value={data.license_professional_status} />
+            <Row label="Fase" value={data.professional_license_phase} />
+            <Row
+              label="Días restantes"
+              value={
+                data.professional_license_days_remaining != null
+                  ? String(data.professional_license_days_remaining)
+                  : null
+              }
+            />
+            <Row
+              label="Inicio gracia"
+              value={formatDate(data.professional_license_grace_started_at)}
+            />
+            <Row label="Vence" value={formatDate(data.professional_license_due_at)} />
+            <Row
+              label="Bloquea online"
+              value={
+                data.professional_license_blocks_online
+                  ? 'Sí'
+                  : 'No (v1 solo banner / visibilidad)'
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
