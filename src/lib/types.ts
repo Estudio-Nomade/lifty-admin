@@ -267,6 +267,15 @@ export type CommissionCurrent = {
   start_date?: string;
 };
 
+/** Flat Lifty commission from GET/PUT /admin/commission/rate */
+export type CommissionRateFlat = {
+  rate: number;
+  rate_pct: number;
+  raw?: string | null;
+  updated_at?: string | null;
+  changed?: boolean;
+};
+
 export type CommissionStartDate = {
   start_date: string;
   /** false when row missing in platform_config (API returns default) */
