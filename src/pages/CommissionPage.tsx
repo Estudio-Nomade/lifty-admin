@@ -1,80 +1,20 @@
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { ApiError, apiFetch } from '@/lib/api';
-import type {
-  CommissionCurrent,
-  CommissionPhase,
-  CommissionStartDate,
-  LiftyPayoutAccount,
-} from '@/lib/types';
+import type { CommissionRateFlat, LiftyPayoutAccount } from '@/lib/types';
 import { formatArs } from '@/lib/utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Percent, Pencil } from 'lucide-react';
+import { Percent } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
-function pctFromFraction(rate: number | null | undefined) {
-  if (rate == null || Number.isNaN(rate)) return '—';
-  return `${(rate * 100).toFixed(rate * 100 % 1 === 0 ? 0 : 2)}%`;
-}
-
-function fractionFromPctInput(raw: string): number | null {
-  const n = Number.parseFloat(raw.replace(',', '.'));
-  if (Number.isNaN(n)) return null;
-  return n / 100;
-}
-
-function formatDayRange(start: number, end: number | null) {
-  if (end == null) return `Día ${start}+`;
-  if (start === end) return `Día ${start}`;
-  return `Días ${start}–${end}`;
-}
-
-/** Ops glossary — rates shown as %; backend stores 0–1. */
-const PHASE_FIELD_HELP = {
-  days: 'Rango de días desde la fecha de inicio (día 1 = ese día). Sin solaparse entre fases.',
-  base: 'Comisión fija al entrar a la fase. Ej. 10 = 10% del viaje.',
-  increment:
-    'Cuánto suma la comisión por cada día dentro de la fase. Vacío = rate fijo (solo Base). Fórmula: Base + (día actual − día inicio) × Incremento.',
-  cap: 'Techo máximo si hay incremento. Vacío = sin tope. Nunca se cobra más que el Cap.',
-  effective:
-    'Rate efectivo = min(Cap, Base + (Día N − día inicio) × Incremento/día). Si no hay incremento, es solo la Base.',
-} as const;
-
 export function CommissionPage() {
   const queryClient = useQueryClient();
-  const [startDateDraft, setStartDateDraft] = useState('');
-  const [confirmStartDate, setConfirmStartDate] = useState(false);
-  const [editPhase, setEditPhase] = useState<CommissionPhase | null>(null);
-  const [editForm, setEditForm] = useState({
-    name: '',
-    day_start: '',
-    day_end: '',
-    base_rate_pct: '',
-    daily_increment_pct: '',
-    cap_rate_pct: '',
-  });
+  const [ratePctDraft, setRatePctDraft] = useState('');
   const [payoutForm, setPayoutForm] = useState({
     alias: '',
     cvu: '',
@@ -82,19 +22,9 @@ export function CommissionPage() {
     bank: '',
   });
 
-  const currentQ = useQuery({
-    queryKey: ['admin', 'commission', 'current'],
-    queryFn: () => apiFetch<CommissionCurrent>('/admin/commission/current'),
-  });
-
-  const phasesQ = useQuery({
-    queryKey: ['admin', 'commission', 'phases'],
-    queryFn: () => apiFetch<CommissionPhase[]>('/admin/commission/phases'),
-  });
-
-  const startDateQ = useQuery({
-    queryKey: ['admin', 'commission', 'start-date'],
-    queryFn: () => apiFetch<CommissionStartDate>('/admin/commission/start-date'),
+  const rateQ = useQuery({
+    queryKey: ['admin', 'commission', 'rate'],
+    queryFn: () => apiFetch<CommissionRateFlat>('/admin/commission/rate'),
   });
 
   const payoutQ = useQuery({
@@ -103,10 +33,10 @@ export function CommissionPage() {
   });
 
   useEffect(() => {
-    if (startDateQ.data?.start_date) {
-      setStartDateDraft(startDateQ.data.start_date);
+    if (rateQ.data != null && Number.isFinite(rateQ.data.rate_pct)) {
+      setRatePctDraft(String(rateQ.data.rate_pct));
     }
-  }, [startDateQ.data?.start_date]);
+  }, [rateQ.data]);
 
   useEffect(() => {
     if (!payoutQ.data) return;
@@ -121,6 +51,26 @@ export function CommissionPage() {
   const invalidateAll = () => {
     void queryClient.invalidateQueries({ queryKey: ['admin', 'commission'] });
   };
+
+  const rateMutation = useMutation({
+    mutationFn: (rate_pct: number) =>
+      apiFetch<CommissionRateFlat & { changed?: boolean }>('/admin/commission/rate', {
+        method: 'PUT',
+        body: JSON.stringify({ rate_pct }),
+      }),
+    onSuccess: (data) => {
+      toast.success(
+        data.changed === false
+          ? `Comisión sin cambios (${data.rate_pct}%)`
+          : `Comisión actualizada a ${data.rate_pct}% (conductores notificados)`,
+      );
+      queryClient.setQueryData(['admin', 'commission', 'rate'], data);
+      invalidateAll();
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : 'No se pudo guardar la comisión');
+    },
+  });
 
   const payoutMutation = useMutation({
     mutationFn: (body: { alias: string; cvu: string; holder: string; bank: string }) =>
@@ -138,124 +88,16 @@ export function CommissionPage() {
     },
   });
 
-  const startDateMutation = useMutation({
-    mutationFn: (value: string) =>
-      apiFetch<CommissionStartDate>('/admin/commission/start-date', {
-        method: 'PUT',
-        body: JSON.stringify({ value }),
-      }),
-    onSuccess: (data) => {
-      toast.success('Fecha de inicio actualizada');
-      setConfirmStartDate(false);
-      // Keep draft + cache in sync so banner/configured clear without a full reload race.
-      setStartDateDraft(data.start_date);
-      queryClient.setQueryData<CommissionStartDate>(['admin', 'commission', 'start-date'], {
-        start_date: data.start_date,
-        configured: data.configured ?? true,
-      });
-      invalidateAll();
-    },
-    onError: (err) => {
-      toast.error(err instanceof ApiError ? err.message : 'No se pudo guardar la fecha');
-    },
-  });
-
-  const phaseMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
-      apiFetch<CommissionPhase>(`/admin/commission/phases/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      toast.success('Fase actualizada');
-      setEditPhase(null);
-      invalidateAll();
-    },
-    onError: (err) => {
-      toast.error(err instanceof ApiError ? err.message : 'No se pudo guardar la fase');
-    },
-  });
-
-  const openEdit = (phase: CommissionPhase) => {
-    setEditPhase(phase);
-    setEditForm({
-      name: phase.name,
-      day_start: String(phase.day_start),
-      day_end: phase.day_end == null ? '' : String(phase.day_end),
-      base_rate_pct: (phase.base_rate * 100).toFixed(2).replace(/\.?0+$/, ''),
-      daily_increment_pct:
-        phase.daily_increment == null
-          ? ''
-          : (phase.daily_increment * 100).toFixed(4).replace(/\.?0+$/, ''),
-      cap_rate_pct:
-        phase.cap_rate == null ? '' : (phase.cap_rate * 100).toFixed(2).replace(/\.?0+$/, ''),
-    });
-  };
-
-  const savePhase = () => {
-    if (!editPhase) return;
-    const base = fractionFromPctInput(editForm.base_rate_pct);
-    if (base == null || base < 0 || base > 1) {
-      toast.error('Base rate inválido (0–100%)');
+  const saveRate = () => {
+    const n = Number.parseFloat(ratePctDraft.replace(',', '.'));
+    if (!Number.isFinite(n) || n < 0 || n > 30) {
+      toast.error('Comisión inválida (0–30%)');
       return;
     }
-    const dayStart = Number.parseInt(editForm.day_start, 10);
-    if (!Number.isFinite(dayStart) || dayStart < 1) {
-      toast.error('Día inicio inválido (≥ 1)');
-      return;
-    }
-    const body: Record<string, unknown> = {
-      name: editForm.name.trim() || editPhase.name,
-      day_start: dayStart,
-      base_rate: base,
-    };
-    if (editForm.day_end.trim() === '') {
-      body.day_end = null;
-    } else {
-      const dayEnd = Number.parseInt(editForm.day_end, 10);
-      if (!Number.isFinite(dayEnd) || dayEnd < dayStart) {
-        toast.error('Día fin debe ser ≥ día inicio (o vacío = ∞)');
-        return;
-      }
-      body.day_end = dayEnd;
-    }
-    if (editForm.daily_increment_pct.trim() === '') {
-      body.daily_increment = null;
-    } else {
-      const inc = fractionFromPctInput(editForm.daily_increment_pct);
-      if (inc == null) {
-        toast.error('Incremento inválido');
-        return;
-      }
-      body.daily_increment = inc;
-    }
-    if (editForm.cap_rate_pct.trim() === '') {
-      body.cap_rate = null;
-    } else {
-      const cap = fractionFromPctInput(editForm.cap_rate_pct);
-      if (cap == null) {
-        toast.error('Cap inválido');
-        return;
-      }
-      body.cap_rate = cap;
-    }
-    phaseMutation.mutate({ id: editPhase.id, body });
+    rateMutation.mutate(n);
   };
 
-  // Allow save when API only returned the default (configured=false) even if the draft equals
-  // that default — otherwise "Guardar fecha" stays forever disabled and ops cannot pin launch.
-  const sameStartDateAsLoaded =
-    Boolean(startDateDraft) && startDateDraft === startDateQ.data?.start_date;
-  const startDateNeedsPersist = startDateQ.data?.configured === false;
-  const canSaveStartDate =
-    Boolean(startDateDraft) &&
-    (!sameStartDateAsLoaded || startDateNeedsPersist) &&
-    !startDateMutation.isPending;
-
-  // Payout is independent — don't block phases UI on payout load/error alone.
-  const loading = currentQ.isLoading || phasesQ.isLoading || startDateQ.isLoading;
-  const allFailed = currentQ.isError && phasesQ.isError && startDateQ.isError;
-
+  const loading = rateQ.isLoading;
   if (loading) {
     return (
       <div className="mx-auto w-full max-w-5xl space-y-4">
@@ -266,52 +108,29 @@ export function CommissionPage() {
     );
   }
 
-  if (allFailed) {
+  if (rateQ.isError) {
     const msg =
-      (currentQ.error instanceof ApiError && currentQ.error.message) ||
-      (phasesQ.error instanceof ApiError && phasesQ.error.message) ||
-      (startDateQ.error instanceof ApiError && startDateQ.error.message) ||
-      'No se pudo cargar comisiones';
+      (rateQ.error instanceof ApiError && rateQ.error.message) || 'No se pudo cargar comisiones';
     return (
       <div className="mx-auto w-full max-w-lg rounded-lg border border-destructive/30 bg-red-50 p-8 text-center">
         <p className="text-sm text-destructive">{msg}</p>
-        <Button
-          className="mt-3"
-          variant="outline"
-          onClick={() => {
-            void currentQ.refetch();
-            void phasesQ.refetch();
-            void startDateQ.refetch();
-          }}
-        >
+        <Button className="mt-3" variant="outline" onClick={() => void rateQ.refetch()}>
           Reintentar
         </Button>
       </div>
     );
   }
 
-  const current = currentQ.data;
-  const phases = phasesQ.data ?? [];
-  const partialErrors = [
-    currentQ.isError
-      ? `Fase actual: ${currentQ.error instanceof ApiError ? currentQ.error.message : 'error'}`
-      : null,
-    phasesQ.isError
-      ? `Fases: ${phasesQ.error instanceof ApiError ? phasesQ.error.message : 'error'}`
-      : null,
-    startDateQ.isError
-      ? `Fecha inicio: ${startDateQ.error instanceof ApiError ? startDateQ.error.message : 'error'}`
-      : null,
-  ].filter(Boolean) as string[];
+  const rate = rateQ.data;
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-navy">Comisiones</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          La comisión es <strong className="font-medium text-foreground">global</strong> para todos
-          los conductores activos: se elige la fase según cuántos días pasaron desde la fecha de
-          inicio. No hay % por conductor.
+          Un solo % global de Lifty sobre cada viaje nuevo. No cambia la tarifa al pasajero. Default
+          launch <strong className="font-medium text-foreground">0%</strong>; subir a 5% cuando ops
+          lo indique.
         </p>
         <div className="mt-3">
           <Button variant="outline" size="sm" asChild>
@@ -319,6 +138,41 @@ export function CommissionPage() {
           </Button>
         </div>
       </div>
+
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Percent className="size-4" />
+            Comisión vigente
+          </CardTitle>
+          <CardDescription>
+            Aplica de inmediato a viajes nuevos. Al guardar un valor distinto se notifica a
+            conductores aprobados (push + Mensajes).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-end gap-6">
+          <div>
+            <p className="text-xs text-muted-foreground">Actual</p>
+            <p className="text-3xl font-bold text-primary">
+              {rate != null && Number.isFinite(rate.rate_pct) ? `${rate.rate_pct}%` : '—'}
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rate-pct">Nueva comisión (%)</Label>
+            <Input
+              id="rate-pct"
+              className="w-32"
+              inputMode="decimal"
+              value={ratePctDraft}
+              onChange={(e) => setRatePctDraft(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <Button disabled={rateMutation.isPending} onClick={saveRate}>
+            {rateMutation.isPending ? 'Guardando…' : 'Guardar'}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-2">
@@ -392,303 +246,6 @@ export function CommissionPage() {
           </Button>
         </CardContent>
       </Card>
-
-      <Card className="border-muted bg-muted/30">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Cómo se calcula cada fase</CardTitle>
-          <CardDescription>
-            En pantalla se muestra en % (10 = 10%). El backend guarda fracción 0–1 (0.10).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <ul className="list-disc space-y-2 pl-5">
-            <li>
-              <span className="font-medium text-foreground">Días:</span> {PHASE_FIELD_HELP.days}
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Base:</span> {PHASE_FIELD_HELP.base}
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Incremento/día:</span>{' '}
-              {PHASE_FIELD_HELP.increment}
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Cap (techo):</span> {PHASE_FIELD_HELP.cap}
-            </li>
-          </ul>
-          <p className="rounded-md border bg-background px-3 py-2 text-foreground">
-            <span className="font-medium">Rate efectivo:</span> {PHASE_FIELD_HELP.effective}
-          </p>
-          <p>
-            Ejemplo: Base 10%, Incremento 0,1%/día, Cap 15%, día 5 de la fase → 10% + 4×0,1% = 10,4%
-            (si no supera el Cap).
-          </p>
-        </CardContent>
-      </Card>
-
-      {partialErrors.length ? (
-        <div className="rounded-lg border border-destructive/30 bg-red-50 px-4 py-3 text-sm text-destructive">
-          {partialErrors.map((e) => (
-            <p key={e}>{e}</p>
-          ))}
-        </div>
-      ) : null}
-
-      {startDateQ.data && startDateQ.data.configured === false ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          La fecha de inicio aún no está guardada en config. Se muestra el default; usá{' '}
-          <strong>Guardar fecha</strong> para fijarla en la plataforma (aunque dejes el mismo
-          default).
-        </div>
-      ) : null}
-
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Percent className="size-4" />
-            Fase actual
-          </CardTitle>
-          <CardDescription title={PHASE_FIELD_HELP.effective}>
-            Según fecha de inicio y días transcurridos. El % de acá es el que se cobra hoy.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-8">
-          <div>
-            <p className="text-xs text-muted-foreground">Fase</p>
-            <p className="text-xl font-semibold text-navy">{current?.phase ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground" title="Día 1 = fecha de inicio (UTC)">
-              Día N
-            </p>
-            <p className="text-xl font-semibold text-navy">{current?.currentDay ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground" title={PHASE_FIELD_HELP.effective}>
-              Rate efectivo
-            </p>
-            <p className="text-3xl font-bold text-primary">
-              {current ? pctFromFraction(current.rate) : '—'}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Fecha de inicio</CardTitle>
-          <CardDescription>
-            Define el día 1 del modelo de fases. Cambiarla recalcula el día actual y la fase
-            efectiva.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="start-date">Inicio (YYYY-MM-DD)</Label>
-            <Input
-              id="start-date"
-              type="date"
-              value={startDateDraft}
-              onChange={(e) => setStartDateDraft(e.target.value)}
-              className="w-48"
-            />
-          </div>
-          <Button
-            type="button"
-            disabled={!canSaveStartDate}
-            title={
-              !startDateDraft
-                ? 'Elegí una fecha'
-                : sameStartDateAsLoaded && !startDateNeedsPersist
-                  ? 'No hay cambios respecto a la fecha guardada'
-                  : startDateNeedsPersist && sameStartDateAsLoaded
-                    ? 'Fijar el default en la plataforma'
-                    : 'Guardar fecha de inicio'
-            }
-            onClick={() => setConfirmStartDate(true)}
-          >
-            {startDateMutation.isPending ? 'Guardando…' : 'Guardar fecha'}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Fases</CardTitle>
-          <CardDescription>
-            Cada fila es un tramo de días. Si Incremento y Cap están en —, la comisión es fija (=
-            Base) todo el tramo. Hover en el encabezado de cada columna para el detalle.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!phases.length ? (
-            <p className="text-sm text-muted-foreground">No hay fases configuradas</p>
-          ) : (
-            <div className="overflow-x-auto rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead title={PHASE_FIELD_HELP.days}>Días</TableHead>
-                    <TableHead title={PHASE_FIELD_HELP.base}>Base</TableHead>
-                    <TableHead title={PHASE_FIELD_HELP.increment}>Incremento/día</TableHead>
-                    <TableHead title={PHASE_FIELD_HELP.cap}>Cap</TableHead>
-                    <TableHead className="w-20" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {phases.map((p) => {
-                    const isCurrent = current?.phase === p.name;
-                    return (
-                      <TableRow key={p.id}>
-                        <TableCell className="font-medium text-navy">
-                          <span className="inline-flex items-center gap-2">
-                            {p.name}
-                            {isCurrent ? <Badge>Actual</Badge> : null}
-                          </span>
-                        </TableCell>
-                        <TableCell>{formatDayRange(p.day_start, p.day_end)}</TableCell>
-                        <TableCell>{pctFromFraction(p.base_rate)}</TableCell>
-                        <TableCell>{pctFromFraction(p.daily_increment)}</TableCell>
-                        <TableCell>{pctFromFraction(p.cap_rate)}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1"
-                            onClick={() => openEdit(p)}
-                          >
-                            <Pencil className="size-3.5" />
-                            Editar
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog open={confirmStartDate} onOpenChange={setConfirmStartDate}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>¿Cambiar fecha de inicio?</DialogTitle>
-            <DialogDescription>
-              Se recalcula el día de todas las fases a partir de {startDateDraft}. El rate efectivo
-              puede cambiar de inmediato.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setConfirmStartDate(false)}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={startDateMutation.isPending}
-              onClick={() => startDateMutation.mutate(startDateDraft)}
-            >
-              {startDateMutation.isPending ? 'Guardando…' : 'Confirmar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={editPhase != null} onOpenChange={(o) => !o && setEditPhase(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Editar fase</DialogTitle>
-            <DialogDescription>
-              Ingresá rates en % (ej. 10 = 10%). Día fin vacío = abierto (∞). Incremento y Cap vacíos
-              = comisión fija en la Base.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-3 py-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="ph-name">Nombre</Label>
-              <Input
-                id="ph-name"
-                value={editForm.name}
-                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="ph-ds">Día inicio</Label>
-                <Input
-                  id="ph-ds"
-                  type="number"
-                  min={1}
-                  value={editForm.day_start}
-                  onChange={(e) => setEditForm((f) => ({ ...f, day_start: e.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground">Primer día de esta fase (≥ 1).</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ph-de">Día fin (vacío = ∞)</Label>
-                <Input
-                  id="ph-de"
-                  type="number"
-                  min={1}
-                  value={editForm.day_end}
-                  onChange={(e) => setEditForm((f) => ({ ...f, day_end: e.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground">Último día inclusive; vacío = sin fin.</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="ph-base">Base %</Label>
-                <Input
-                  id="ph-base"
-                  inputMode="decimal"
-                  value={editForm.base_rate_pct}
-                  onChange={(e) => setEditForm((f) => ({ ...f, base_rate_pct: e.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground">{PHASE_FIELD_HELP.base}</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ph-inc">Incr. %/día</Label>
-                <Input
-                  id="ph-inc"
-                  inputMode="decimal"
-                  value={editForm.daily_increment_pct}
-                  onChange={(e) =>
-                    setEditForm((f) => ({ ...f, daily_increment_pct: e.target.value }))
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  Suma por día desde el día inicio. Vacío = fijo.
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="ph-cap">Cap % (techo)</Label>
-                <Input
-                  id="ph-cap"
-                  inputMode="decimal"
-                  value={editForm.cap_rate_pct}
-                  onChange={(e) => setEditForm((f) => ({ ...f, cap_rate_pct: e.target.value }))}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Máximo si hay incremento. Vacío = sin tope.
-                </p>
-              </div>
-            </div>
-            <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              {PHASE_FIELD_HELP.effective}
-            </p>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setEditPhase(null)}>
-              Cancelar
-            </Button>
-            <Button disabled={phaseMutation.isPending} onClick={savePhase}>
-              {phaseMutation.isPending ? 'Guardando…' : 'Guardar'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
